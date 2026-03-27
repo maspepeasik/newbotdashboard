@@ -57,6 +57,8 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@dashboard-db:5432/pentest_dashboard?schema=public
       REDIS_URL: redis://dashboard-redis:6379
       REPORT_STORAGE_PATH: /app/storage/reports
+      PENTESTBOT_API_URL: ${PENTESTBOT_API_URL:-http://pentestbot:8080}
+      PENTESTBOT_API_TOKEN: ${PENTESTBOT_API_TOKEN:-}
     ports:
       - "4000:4000"
     depends_on:
@@ -88,12 +90,16 @@ services:
       REPORT_STORAGE_PATH: /app/storage/reports
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      PENTESTBOT_API_URL: ${PENTESTBOT_API_URL:-http://pentestbot:8080}
+      PENTESTBOT_API_TOKEN: ${PENTESTBOT_API_TOKEN:-}
     depends_on:
       dashboard-db:
         condition: service_healthy
       dashboard-redis:
         condition: service_healthy
       dashboard-api:
+        condition: service_healthy
+      pentestbot:
         condition: service_healthy
     volumes:
       - dashboard_reports:/app/storage/reports
