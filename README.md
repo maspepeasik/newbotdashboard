@@ -1,4 +1,4 @@
-# PentestBot v2 — Docker Deployment
+# Scan Bot — Docker Deployment
 
 This parent folder orchestrates the entire PentestBot architecture:
 
