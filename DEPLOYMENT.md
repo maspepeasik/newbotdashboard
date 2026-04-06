@@ -1,55 +1,50 @@
-# Combined Docker Deployment
+# PentestBot v2 — Docker Deployment
 
-This parent folder can run both systems together:
+This parent folder orchestrates the entire PentestBot architecture:
 
-- `dashboard/`: web dashboard, API, worker, PostgreSQL, Redis
-- `pentestbot_2-main/`: Telegram automation bot
+- `frontend/`: Next.js web dashboard
+- `backend/`: Engine (FastAPI + Scanner Pipeline)
+- `cloudflared`: Tunnel for public exposure (configured in docker-compose.yml)
 
 ## Preparation
 
-1. Copy both environment files:
+1. Provide the main environment file (at the root of this project folder) by copying the example:
 
 ```bash
-cp dashboard/.env.example dashboard/.env
-cp pentestbot_2-main/.env.example pentestbot_2-main/.env
+cp .env.example .env
 ```
 
-2. Fill required secrets:
+2. Fill required secrets in `.env`:
 
-- `dashboard/.env`
-  - `JWT_SECRET`
-- `pentestbot_2-main/.env`
-  - `TELEGRAM_BOT_TOKEN`
-  - `GROQ_API_KEY`
-  - `ALLOWED_USER_IDS`
+- `GROQ_API_KEY`
+- `CLOUDFLARE_TUNNEL_TOKEN` (if using cloudflared)
+- `PENTESTBOT_API_TOKEN` (for secure API access)
 
 ## Start everything
 
 ```bash
-docker compose up --build -d
+docker-compose up --build -d
 ```
 
 ## View logs
 
 ```bash
-docker compose logs -f
+docker-compose logs -f
 ```
 
 ## Stop everything
 
 ```bash
-docker compose down
+docker-compose down
 ```
 
 ## Remove all service volumes
 
 ```bash
-docker compose down -v
+docker-compose down -v
 ```
 
 ## Exposed ports
 
-- `3000`: Dashboard web UI
-- `4000`: Dashboard API and Socket.IO
-- `5432`: PostgreSQL
-- `6379`: Redis
+- `8000`: Engine API
+- `3000`: Frontend Dashboard

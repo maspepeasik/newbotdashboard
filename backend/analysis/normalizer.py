@@ -1,0 +1,393 @@
+"""
+PentestBot v2 — Normalizer
+Enriches an AggregatedResult with:
+  - Computed risk score (0–100)
+  - Risk level classification
+  - Per-finding remediation advice
+  - Missing security header analysis
+  - Deduplication pass
+"""
+
+from analysis.result_aggregator import (
+    AggregatedResult, Finding, SEVERITY_WEIGHT,
+)
+
+
+# ── Remediation knowledge base ────────────────────────────────────────────────
+
+_PORT_REMEDIATION: dict[int, str] = {
+    21:    "Disable FTP. Use SFTP or SCP instead. If FTP is required, enforce TLS (FTPS) and restrict by IP.",
+    22:    "Restrict SSH to key-based authentication. Disable password login. Use fail2ban and restrict to trusted IPs.",
+    23:    "Disable Telnet immediately. Replace with SSH. Remove or block the service at the firewall.",
+    25:    "Restrict SMTP to authenticated relaying only. Test for open relay. Enforce SPF, DKIM, DMARC.",
+    53:    "Disable DNS recursion for external queries. Restrict zone transfers. Use DNSSEC.",
+    389:   "Disable anonymous LDAP bind. Enforce LDAPS (port 636). Restrict access to internal networks.",
+    445:   "Block SMB at the perimeter firewall. Apply MS17-010 patches. Disable SMBv1.",
+    1433:  "Restrict MSSQL to internal networks. Enforce strong passwords. Audit login events.",
+    1521:  "Restrict Oracle DB access to application servers only. Disable default accounts.",
+    3306:  "Bind MySQL to 127.0.0.1 or use firewall rules. Revoke remote root access.",
+    3389:  "Move RDP behind VPN. Enable Network Level Authentication. Apply latest patches. Monitor for brute-force.",
+    5432:  "Restrict PostgreSQL via pg_hba.conf. Disable remote root. Use SSL connections.",
+    5900:  "Restrict VNC to localhost or VPN only. Enable strong authentication. Prefer SSH tunneling.",
+    6379:  "Bind Redis to 127.0.0.1. Enable requirepass. Use firewall rules. Never expose publicly.",
+    9200:  "Restrict Elasticsearch to internal networks. Enable X-Pack security or open-distro security plugin.",
+    27017: "Enable MongoDB authentication. Bind to localhost. Use TLS connections. Audit access logs.",
+}
+
+_TLS_REMEDIATION: dict[str, str] = {
+    "sslv2":      "Disable SSLv2 on all services; it is cryptographically broken.",
+    "sslv3":      "Disable SSLv3 to prevent POODLE. Use TLS 1.2 as the minimum.",
+    "tls1":       "Disable TLS 1.0; deprecated since 2021. Enforce TLS 1.2+.",
+    "tls1_1":     "Disable TLS 1.1; deprecated. Configure TLS 1.2 as the minimum.",
+    "heartbleed": "CRITICAL: Upgrade OpenSSL immediately. This leaks private key material.",
+    "poodle":     "Disable SSLv3 and enable TLS_FALLBACK_SCSV.",
+    "beast":      "Disable TLS 1.0. Prioritize non-CBC cipher suites.",
+    "sweet32":    "Disable 3DES cipher suites. Use AES-GCM alternatives.",
+    "rc4":        "Disable all RC4 cipher suites; they are broken.",
+    "robot":      "Disable RSA key exchange. Use ECDHE for forward secrecy.",
+    "drown":      "Disable SSLv2 on all services. Avoid sharing private keys.",
+    "logjam":     "Disable DHE or increase DH key size to 2048+ bits.",
+    "freak":      "Disable export-grade cipher suites.",
+    "crime":      "Disable TLS compression.",
+}
+
+_GENERIC_REMEDIATION: dict[str, str] = {
+    "critical": (
+        "Remediate immediately. Treat this as an active incident. "
+        "Apply vendor patches, isolate the affected component, and "
+        "implement emergency compensating controls within 24 hours."
+    ),
+    "high": (
+        "Remediate urgently within 7 days. Assess for active exploitation. "
+        "Apply available patches and implement firewall rules or WAF rules "
+        "as temporary mitigation."
+    ),
+    "medium": (
+        "Schedule remediation within 30 days. Apply hardening guidelines "
+        "and review related configurations for similar issues."
+    ),
+    "low": (
+        "Address in the next maintenance cycle. Apply defense-in-depth "
+        "measures and document the accepted risk if not remediated."
+    ),
+    "info": (
+        "Review this informational finding. While not directly exploitable, "
+        "it may provide useful context for an attacker. Assess risk in context."
+    ),
+}
+
+_MISSING_HEADER_FINDINGS: list[dict] = [
+    {
+        "header": "strict-transport-security",
+        "title": "Missing HTTP Strict Transport Security (HSTS)",
+        "severity": "medium",
+        "description": (
+            "The Strict-Transport-Security header is not set. "
+            "This allows attackers to downgrade HTTPS connections to HTTP."
+        ),
+        "remediation": (
+            "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload' "
+            "to all HTTPS responses."
+        ),
+    },
+    {
+        "header": "x-frame-options",
+        "title": "Missing X-Frame-Options Header",
+        "severity": "medium",
+        "description": (
+            "The X-Frame-Options header is absent. "
+            "This may allow the page to be embedded in iframes, enabling clickjacking attacks."
+        ),
+        "remediation": "Set 'X-Frame-Options: DENY' or 'SAMEORIGIN' on all responses.",
+    },
+    {
+        "header": "content-security-policy",
+        "title": "Missing Content-Security-Policy Header",
+        "severity": "medium",
+        "description": (
+            "No Content-Security-Policy header detected. "
+            "This increases risk from cross-site scripting (XSS) and data injection."
+        ),
+        "remediation": (
+            "Implement a strict CSP policy. Start with "
+            "'Content-Security-Policy: default-src \\'self\\'; script-src \\'self\\'' "
+            "and tighten iteratively."
+        ),
+    },
+    {
+        "header": "x-content-type-options",
+        "title": "Missing X-Content-Type-Options Header",
+        "severity": "low",
+        "description": (
+            "The X-Content-Type-Options header is not set. "
+            "Browsers may MIME-sniff responses, enabling content-type confusion attacks."
+        ),
+        "remediation": "Set 'X-Content-Type-Options: nosniff' on all responses.",
+    },
+]
+
+
+# ── Normalizer ────────────────────────────────────────────────────────────────
+
+class Normalizer:
+    """
+    Post-aggregation enrichment:
+    1. Inject remediation advice into every finding
+    2. Add missing security header findings
+    3. Calculate final risk score
+    4. Classify risk level
+    """
+
+    def __init__(self, scan_mode: str = "fast"):
+        self.scan_mode = scan_mode
+
+    def normalize(self, result: AggregatedResult) -> AggregatedResult:
+        self._inject_remediations(result)
+        self._record_header_hardening_notes(result)
+        self._dedupe_findings(result)
+        self._filter_findings(result)
+        result.risk_score = self._calculate_risk_score(result)
+        result.risk_level = self._classify_risk(result.risk_score)
+
+        # Re-sort after adding header findings
+        sev_rank = {s: i for i, s in enumerate(
+            ["critical", "high", "medium", "low", "info", "unknown"]
+        )}
+        result.findings.sort(key=lambda f: sev_rank.get(f.severity, 99))
+
+        # Update summary counts after normalization
+        sev_counts: dict = {}
+        for f in result.findings:
+            sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
+        result.severity_summary = sev_counts
+        result.total_findings   = len(result.findings)
+        result.limitations = list(dict.fromkeys(result.limitations))
+
+        return result
+
+    def _inject_remediations(self, result: AggregatedResult) -> None:
+        for f in result.findings:
+            if f.remediation:
+                continue  # Already has remediation
+
+            # TLS-specific
+            if f.source == "testssl.sh":
+                f.remediation = self._tls_remediation(f.id)
+                continue
+
+            # Port-specific
+            if f.source in ("naabu/nmap",):
+                port = self._extract_port(f.id)
+                if port and port in _PORT_REMEDIATION:
+                    f.remediation = _PORT_REMEDIATION[port]
+                    continue
+
+            # Generic by severity
+            f.remediation = _GENERIC_REMEDIATION.get(f.severity, _GENERIC_REMEDIATION["info"])
+
+    def _record_header_hardening_notes(self, result: AggregatedResult) -> None:
+        """Record missing security headers as hardening notes, not findings."""
+        if not result.live_hosts:
+            return
+
+        for header_def in _MISSING_HEADER_FINDINGS:
+            hname = header_def["header"]
+            affected = {
+                host["url"]
+                for host in result.live_hosts
+                if self._header_check_applies(host, hname)
+                if hname not in {hdr.lower() for hdr in (host.get("headers") or {}).keys()}
+            }
+            if not affected:
+                continue
+
+            result.limitations.append(
+                f"Hardening note: {header_def['title']} on {len(affected)} endpoint(s)."
+            )
+
+    def _dedupe_findings(self, result: AggregatedResult) -> None:
+        deduped: list[Finding] = []
+        seen: set[tuple[str, str, str, tuple[str, ...]]] = set()
+        for finding in result.findings:
+            finding.affected = sorted(dict.fromkeys(finding.affected))
+            key = (
+                finding.source.strip().lower(),
+                finding.title.strip().lower(),
+                finding.description.strip().lower(),
+                tuple(item.strip().lower() for item in finding.affected),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(finding)
+        result.findings = deduped
+
+    def _filter_findings(self, result: AggregatedResult) -> None:
+        filtered: list[Finding] = []
+        excluded = 0
+        result.observed_findings_count = len(result.findings)
+        keep_fn = self._should_keep_finding_deep if self.scan_mode == "deep" else self._should_keep_finding
+        for finding in result.findings:
+            if keep_fn(finding):
+                filtered.append(finding)
+            else:
+                excluded += 1
+
+        result.excluded_findings_count = excluded
+        if excluded:
+            result.notes.append(
+                f"{excluded} low-signal or hardening-only finding(s) were excluded from the final report."
+            )
+        result.findings = filtered
+
+    @staticmethod
+    def _header_check_applies(host: dict, header_name: str) -> bool:
+        url = str(host.get("url", "")).lower()
+        if header_name == "strict-transport-security":
+            return url.startswith("https://")
+        return True
+
+    def _calculate_risk_score(self, result: AggregatedResult) -> float:
+        score = 0.0
+
+        # Findings weight
+        for f in result.findings:
+            multiplier = 1.0 if getattr(f, "validated", False) else 0.4
+            score += SEVERITY_WEIGHT.get(f.severity, 0.1) * multiplier
+
+        # Dangerous ports bonus
+        score += len(result.dangerous_ports) * 2.0
+
+        # Large attack surface penalty
+        if len(result.subdomains) > 20:
+            score += min((len(result.subdomains) - 20) * 0.1, 5.0)
+
+        # CDN bypass found
+        if result.origin_candidates:
+            score += 1.5
+
+        # Many live hosts
+        if len(result.live_hosts) > 30:
+            score += 2.0
+
+        return min(round(score, 1), 100.0)
+
+    @staticmethod
+    def _classify_risk(score: float) -> str:
+        if score >= 25:  return "Critical"
+        if score >= 12:  return "High"
+        if score >= 5:   return "Medium"
+        if score >= 1:   return "Low"
+        return "Informational"
+
+    @staticmethod
+    def _tls_remediation(finding_id: str) -> str:
+        fid_lower = finding_id.lower()
+        for key, rem in _TLS_REMEDIATION.items():
+            if key in fid_lower:
+                return rem
+        return (
+            "Review TLS configuration using Mozilla SSL Configuration Generator. "
+            "Enforce TLS 1.2+ and disable legacy protocols and weak cipher suites."
+        )
+
+    @staticmethod
+    def _extract_port(finding_id: str) -> int | None:
+        # finding_id format: "port-XXXX"
+        parts = finding_id.split("-")
+        if len(parts) >= 2 and parts[-1].isdigit():
+            return int(parts[-1])
+        return None
+
+    @staticmethod
+    def _should_keep_finding(finding: Finding) -> bool:
+        kind = str(finding.extra.get("kind", "")).lower()
+        text = " ".join(
+            [
+                finding.title or "",
+                finding.description or "",
+                " ".join(finding.tags or []),
+                " ".join(finding.cve_ids or []),
+            ]
+        ).lower()
+
+        if kind == "exposed-service":
+            return finding.severity in {"critical", "high"}
+
+        if kind == "tls":
+            return any(
+                marker in text
+                for marker in (
+                    "heartbleed",
+                    "robot",
+                    "drown",
+                    "logjam",
+                    "sweet32",
+                    "freak",
+                    "poodle",
+                    "rc4",
+                )
+            )
+
+        if finding.source == "nikto":
+            return any(
+                marker in text
+                for marker in (
+                    "sql injection",
+                    "remote code execution",
+                    "command injection",
+                    "xss",
+                    "path traversal",
+                    "file disclosure",
+                    "cve-",
+                )
+            )
+
+        if finding.source == "nuclei":
+            if finding.severity in {"critical", "high"}:
+                return True
+            if finding.severity != "medium":
+                return False
+            return any(
+                marker in text
+                for marker in (
+                    "cve-",
+                    "auth",
+                    "takeover",
+                    "rce",
+                    "remote code execution",
+                    "sql injection",
+                    "ssrf",
+                    "deserialization",
+                    "lfi",
+                    "rfi",
+                    "traversal",
+                    "xss",
+                )
+            )
+
+        return finding.severity in {"critical", "high"}
+
+    @staticmethod
+    def _should_keep_finding_deep(finding: Finding) -> bool:
+        """Relaxed filter for deep scan mode — keeps more findings in the report."""
+        kind = str(finding.extra.get("kind", "")).lower()
+
+        # Keep all nuclei findings of medium+ severity (no keyword gating)
+        if finding.source == "nuclei":
+            return finding.severity in {"critical", "high", "medium"}
+
+        # Keep all TLS findings (not just named attacks)
+        if kind == "tls":
+            return True
+
+        # Keep exposed-service findings of ALL risk levels
+        if kind == "exposed-service":
+            return True
+
+        # Keep nikto findings with medium+ severity
+        if finding.source == "nikto":
+            return finding.severity in {"critical", "high", "medium"}
+
+        # Default: keep if medium or higher
+        return finding.severity in {"critical", "high", "medium"}

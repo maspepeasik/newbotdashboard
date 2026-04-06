@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  pentestbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pentestbot:v2
+    container_name: pentestbot_v2
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOME: /home/pentestbot
+      PENTESTBOT_DATA_DIR: /app/data
+      PENTESTBOT_LOGS_DIR: /app/logs
+      PENTESTBOT_REPORTS_DIR: /app/reports
+      PENTESTBOT_WORK_DIR: /app/data/work
+      PENTESTBOT_DB_PATH: /app/data/pentestbot.db
+      PENTESTBOT_API_HOST: 0.0.0.0
+      PENTESTBOT_API_PORT: 8080
+      ENABLE_WEB_DISCOVERY: ${ENABLE_WEB_DISCOVERY:-true}
+      MAX_DISCOVERED_URLS: ${MAX_DISCOVERED_URLS:-150}
+      ENABLE_SSLYZE: ${ENABLE_SSLYZE:-true}
+      ENABLE_NIKTO: ${ENABLE_NIKTO:-false}
+    volumes:
+      - pentestbot_data:/app/data
+      - pentestbot_logs:/app/logs
+      - pentestbot_reports:/app/reports
+      - nuclei_templates:/home/pentestbot/.config/nuclei
+    expose:
+      - "8080"
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 main.py --check-tools >/dev/null 2>&1 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+
+volumes:
+  pentestbot_data:
+  pentestbot_logs:
+  pentestbot_reports:
+  nuclei_templates:

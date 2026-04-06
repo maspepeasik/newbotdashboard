@@ -1,0 +1,43 @@
+[2026-03-16 12:41:45] [INFO    ] [scan.fd1b73075102] [Recon] Discovering subdomains for yovela-trading.com...
+[2026-03-16 12:41:45] [INFO    ] [scan.fd1b73075102] [Recon] Starting subdomain discovery for yovela-trading.com
+[2026-03-16 12:41:46] [INFO    ] [scan.fd1b73075102] [Recon] assetfinder OK (1.0s, 19 bytes)
+[2026-03-16 12:41:50] [INFO    ] [scan.fd1b73075102] [Recon] subfinder OK (4.5s, 24 bytes)
+[2026-03-16 12:41:50] [INFO    ] [scan.fd1b73075102] [Recon] Done: 1 from subfinder, 1 from assetfinder, 2 unique total.
+[2026-03-16 12:41:50] [INFO    ] [scan.fd1b73075102] [Resolver] Resolving 2 hosts...
+[2026-03-16 12:41:50] [INFO    ] [scan.fd1b73075102] [Resolver] Resolving 2 hosts via dnsx
+[2026-03-16 12:41:51] [INFO    ] [scan.fd1b73075102] [Resolver] dnsx OK (0.7s, 2210 bytes)
+[2026-03-16 12:41:51] [INFO    ] [scan.fd1b73075102] [Resolver] Resolved 2 hosts, 2 unique IPs
+[2026-03-16 12:41:51] [INFO    ] [scan.fd1b73075102] [OriginIP] Detecting origin IPs / CDN bypass...
+[2026-03-16 12:41:51] [INFO    ] [scan.fd1b73075102] [OriginIP] Probing origin IP for yovela-trading.com
+[2026-03-16 12:42:04] [INFO    ] [scan.fd1b73075102] [OriginIP] Found 2 IPs total. CDN: [], Origin: ['104.21.29.108', '172.67.171.117']
+[2026-03-16 12:42:04] [INFO    ] [scan.fd1b73075102] [PortScan] Scanning ports on 2 hosts...
+[2026-03-16 12:42:05] [INFO    ] [scan.fd1b73075102] [PortScan] Scanning 2 hosts
+[2026-03-16 12:42:08] [INFO    ] [scan.fd1b73075102] [PortScan] naabu OK (2.9s, 862 bytes)
+[2026-03-16 12:42:08] [INFO    ] [scan.fd1b73075102] [PortScan] 4 open ports found across 2 hosts. Ports: [80, 443]
+[2026-03-16 12:42:08] [INFO    ] [scan.fd1b73075102] [ServiceScan] Detecting services on 4 open ports...
+[2026-03-16 12:42:08] [INFO    ] [scan.fd1b73075102] [ServiceScan] nmap on 2 target(s), 2 ports
+[2026-03-16 12:42:35] [INFO    ] [scan.fd1b73075102] [ServiceScan] nmap OK (26.7s, 1545 bytes)
+[2026-03-16 12:42:35] [INFO    ] [scan.fd1b73075102] [ServiceScan] Found 4 services, 2 OS matches
+[2026-03-16 12:42:35] [INFO    ] [scan.fd1b73075102] [HTTPProbe] Probing HTTP/HTTPS endpoints...
+[2026-03-16 12:42:35] [INFO    ] [scan.fd1b73075102] [HTTPProbe] Probing 4 URLs
+[2026-03-16 12:42:36] [WARNING ] [scan.fd1b73075102] [HTTPProbe] httpx failed: Usage: httpx [OPTIONS] URL
+
+Error: No such option: -l
+
+[2026-03-16 12:42:36] [INFO    ] [scan.fd1b73075102] [HTTPProbe] 0 live hosts, tech: [], servers: []
+[2026-03-16 12:42:36] [INFO    ] [scan.fd1b73075102] [VulnScan] Running vuln scan on 0 endpoints...
+[2026-03-16 12:42:36] [INFO    ] [scan.fd1b73075102] [VulnScan] Starting Nuclei + Nikto in parallel
+[2026-03-16 12:42:36] [INFO    ] [scan.fd1b73075102] [VulnScan] Primary URL: https://yovela-trading.com
+[2026-03-16 12:42:36] [WARNING ] [scan.fd1b73075102] [VulnScan] nikto failed: + ERROR: Unable to open '' for write: 
+1 at /var/lib/nikto/plugins/nikto_report_text.plugin line 41.
+
+[2026-03-16 12:42:37] [WARNING ] [scan.fd1b73075102] [VulnScan] nuclei failed: 
+[2026-03-16 12:42:37] [INFO    ] [scan.fd1b73075102] [VulnScan] Nuclei: 0 findings | Nikto: 0 findings
+[2026-03-16 12:42:37] [INFO    ] [scan.fd1b73075102] [TLSScan] Analyzing TLS configuration for yovela-trading.com...
+[2026-03-16 12:42:37] [INFO    ] [scan.fd1b73075102] [TLSScan] Analyzing TLS on yovela-trading.com:443
+[2026-03-16 12:44:52] [INFO    ] [scan.fd1b73075102] [TLSScan] testssl.sh OK (134.8s, 27977 bytes)
+[2026-03-16 12:44:52] [INFO    ] [scan.fd1b73075102] [TLSScan] 0 TLS findings
+[2026-03-16 12:44:52] [INFO    ] [scan.fd1b73075102] [Aggregation] Aggregating and normalizing all results...
+[2026-03-16 12:44:53] [INFO    ] [scan.fd1b73075102] [AIAnalysis] Running AI-powered security analysis...
+[2026-03-16 12:44:53] [INFO    ] [scan.fd1b73075102] [Report] Generating professional PDF report...
+[2026-03-16 12:44:53] [INFO    ] [scan.fd1b73075102] [Done] Scan complete in 3m 8s. Report ready.
