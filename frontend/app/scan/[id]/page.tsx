@@ -25,7 +25,7 @@ const STAGE_LABELS: Record<string, string> = {
   Aggregation:  "Aggregation",
   AIAnalysis:   "AI Analysis",
   Report:       "Report Generation",
-  Done:         "Complete",
+  Done:         "Finished",
 };
 
 function stageIcon(state: string): string {
@@ -204,15 +204,31 @@ export default function ScanPage() {
               <span className="stage-name">
                 {STAGE_LABELS[stage.name] || stage.name}
               </span>
-              {stage.completedAt && stage.startedAt && (
-                <span className="stage-time">
-                  {(
-                    (new Date(stage.completedAt).getTime() -
-                      new Date(stage.startedAt).getTime()) /
-                    1000
-                  ).toFixed(1)}s
-                </span>
-              )}
+              {(() => {
+                if (!stage.completedAt || !stage.startedAt) return null;
+                
+                const durationValue = ((
+                  new Date(stage.completedAt).getTime() -
+                  new Date(stage.startedAt).getTime()
+                ) / 1000).toFixed(1);
+
+                const SKIPPABLE_STAGES = ["ServiceScan", "VulnScan", "PortScan", "WebDiscovery", "Fingerprint", "Recon"];
+                const isErrorSkip = stage.error && stage.error.toLowerCase().includes("skip");
+                const isZeroSkip = durationValue === "0.0" && SKIPPABLE_STAGES.includes(stage.name);
+                const isSkipped = isErrorSkip || isZeroSkip;
+                
+                const tooltipText = stage.error || (isSkipped ? "Stage was automatically skipped by pipeline rules due to CDN detection" : undefined);
+                
+                return (
+                  <span 
+                    className="stage-time"
+                    title={tooltipText}
+                    style={isSkipped ? { fontStyle: "italic", color: "var(--text-muted)" } : {}}
+                  >
+                    {isSkipped ? "Skipped" : `${durationValue}s`}
+                  </span>
+                );
+              })()}
             </div>
           ))}
         </div>

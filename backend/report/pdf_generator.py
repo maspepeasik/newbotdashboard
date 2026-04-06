@@ -98,7 +98,7 @@ class PDFGenerator:
     def _cover(self, report: ReportData) -> list:
         story = [
             Spacer(1, 2.2 * cm),
-            Paragraph("Penetration Test Report", self.styles["title"]),
+            Paragraph("ScanBot Report", self.styles["title"]),
             Spacer(1, 0.2 * cm),
             Paragraph(self._escape(report.metadata.target), self.styles["subtitle"]),
             Spacer(1, 0.8 * cm),

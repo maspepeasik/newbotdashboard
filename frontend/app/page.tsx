@@ -11,12 +11,50 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [recentScans, setRecentScans] = useState<ScanListItem[]>([]);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [password, setPassword] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  const totalPages = Math.max(1, Math.ceil(recentScans.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  
+  const paginatedScans = recentScans.slice(
+    (safePage - 1) * itemsPerPage,
+    safePage * itemsPerPage
+  );
 
   useEffect(() => {
     listScans()
       .then((data) => setRecentScans(data.scans || []))
       .catch(() => {});
+      
+    const handleResize = () => setItemsPerPage(window.innerWidth <= 768 ? 5 : 10);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const unlockedUntil = localStorage.getItem("scanbot_unlock_expiry");
+    if (unlockedUntil && parseInt(unlockedUntil, 10) > Date.now()) {
+      setIsUnlocked(true);
+    } else {
+      localStorage.removeItem("scanbot_unlock_expiry");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+    
+    const updateExpiry = () => {
+      localStorage.setItem("scanbot_unlock_expiry", (Date.now() + 5 * 60 * 1000).toString());
+    };
+    
+    updateExpiry();
+    const interval = setInterval(updateExpiry, 30000);
+    return () => clearInterval(interval);
+  }, [isUnlocked]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,25 +189,101 @@ export default function HomePage() {
                 Click a scan to view its progress or download the report
               </div>
             </div>
-            <div className="history-list">
-              {recentScans.map((scan) => (
-                <a
-                  key={scan.scanId}
-                  href={`/scan/${scan.scanId}`}
-                  className="history-item"
+            <div style={{ position: "relative" }}>
+              <div 
+                className="history-list"
+                style={{
+                  filter: isUnlocked ? "none" : "blur(8px)",
+                  pointerEvents: isUnlocked ? "auto" : "none",
+                  userSelect: isUnlocked ? "auto" : "none",
+                }}
+              >
+                {paginatedScans.map((scan) => (
+                  <a
+                    key={scan.scanId}
+                    href={`/scan/${scan.scanId}`}
+                    className="history-item"
+                  >
+                    <span className="history-target">{scan.target}</span>
+                    <span className={`scan-mode-badge ${scan.scanMode || "fast"}`}>
+                      {(scan.scanMode || "fast") === "deep" ? "🔬 Deep" : "⚡ Fast"}
+                    </span>
+                    <span className={`history-state ${scan.state}`}>
+                      {scan.state}
+                    </span>
+                    <span className="history-time">
+                      {formatTime(scan.createdAt)}
+                    </span>
+                  </a>
+                ))}
+                {totalPages > 1 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem" }}>
+                    <button 
+                      className="btn btn-ghost" 
+                      style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}
+                      disabled={safePage === 1}
+                      onClick={() => setCurrentPage(safePage - 1)}
+                    >
+                      ← Previous
+                    </button>
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <button 
+                      className="btn btn-ghost" 
+                      style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}
+                      disabled={safePage === totalPages}
+                      onClick={() => setCurrentPage(safePage + 1)}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {!isUnlocked && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(10, 14, 26, 0.3)",
+                    borderRadius: "8px",
+                    zIndex: 10,
+                  }}
                 >
-                  <span className="history-target">{scan.target}</span>
-                  <span className={`scan-mode-badge ${scan.scanMode || "fast"}`}>
-                    {(scan.scanMode || "fast") === "deep" ? "\ud83d\udd2c Deep" : "\u26a1 Fast"}
-                  </span>
-                  <span className={`history-state ${scan.state}`}>
-                    {scan.state}
-                  </span>
-                  <span className="history-time">
-                    {formatTime(scan.createdAt)}
-                  </span>
-                </a>
-              ))}
+                  <div style={{ marginBottom: "1rem", fontWeight: 600 }}>Enter password to view history</div>
+                  <form
+                    onSubmit={(e: any) => {
+                      e.preventDefault();
+                      if (password === "Jogja@2026#!") {
+                        setIsUnlocked(true);
+                      } else {
+                        alert("Incorrect password!");
+                      }
+                    }}
+                    style={{ display: "flex", gap: "0.5rem" }}
+                  >
+                    <input
+                      type="password"
+                      placeholder="Password"
+                      value={password}
+                      onChange={(e: any) => setPassword(e.target.value)}
+                      className="scan-input"
+                      style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
+                    />
+                    <button type="submit" className="btn btn-primary" style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}>
+                      Unlock
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           </div>
         </section>

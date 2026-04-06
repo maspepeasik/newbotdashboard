@@ -415,6 +415,7 @@ body {
   font-weight: 500;
   color: var(--accent-cyan);
   margin-bottom: 0.5rem;
+  margin-right: 0.5rem;
 }
 
 .progress-section {
@@ -785,6 +786,7 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  margin-left: 0.5rem;
 }
 
 .scan-mode-badge.fast {
@@ -806,6 +808,22 @@ body {
   .features { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .app-container { padding: 1rem; }
+  
+  .history-item { 
+    flex-wrap: wrap; 
+    gap: 0.75rem; 
+  }
+  .history-target { 
+    flex: 1 1 100%; 
+    word-break: break-all;
+  }
+  .actions-row { 
+    flex-direction: column; 
+    width: 100%; 
+  }
+  .actions-row .btn { 
+    width: 100%; 
+  }
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────── */
