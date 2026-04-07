@@ -33,7 +33,7 @@ The platform solves the following problems:
 - **Tool Fragmentation** — Instead of manually running 15+ security tools (subfinder, nmap, nuclei, testssl.sh, etc.) and correlating their outputs, ScanBot orchestrates a complete 11-stage scanning pipeline automatically.
 - **Report Noise** — Raw scanner output contains excessive false positives and low-signal detections. ScanBot normalizes, deduplicates, and filters findings through severity-aware logic before passing them to an AI (Groq LLaMA 3.3) that generates professional prose narratives for each report section.
 - **Accessibility** — The Next.js web dashboard provides a user-friendly interface for submitting scans, monitoring real-time progress across all pipeline stages, and downloading professionally formatted PDF reports.
-- **Flexibility** — The system can be operated through the web dashboard, a Telegram bot, or directly via REST API, and supports both **Fast** and **Deep** scan modes.
+- **Flexibility** — The system can be operated through the web dashboard or directly via REST API, and supports both **Fast** and **Deep** scan modes.
 
 ---
 
@@ -48,7 +48,6 @@ The platform solves the following problems:
 | **Database** | SQLite (async via `aiosqlite` ≥ 0.20) |
 | **AI Integration** | Groq API (LLaMA 3.3 70B Versatile) via `httpx` |
 | **PDF Generation** | ReportLab ≥ 4.2 |
-| **Telegram Bot** | python-telegram-bot 21.5 (optional) |
 | **TLS Analysis** | sslyze ≥ 6.2, testssl.sh |
 | **HTTP Client** | httpx ≥ 0.27, aiohttp ≥ 3.10 |
 | **Environment** | python-dotenv ≥ 1.0 |
@@ -133,9 +132,6 @@ projectdashboard/
 │   ├── service/                # Network services
 │   │   └── http_api.py         # FastAPI application factory (REST endpoints)
 │   │
-│   ├── bot/                    # Telegram integration (optional)
-│   │   └── telegram_bot.py     # Telegram bot command handlers
-│   │
 │   ├── utils/                  # Shared utilities
 │   │   ├── command_runner.py   # Async subprocess wrapper for external tool execution
 │   │   └── logger.py           # Structured logging (per-scan log files)
@@ -174,7 +170,7 @@ The system follows a **pipeline architecture** where data flows through clearly 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                         USER INPUT                               │
-│  (Web Dashboard / Telegram Bot / REST API)                       │
+│  (Web Dashboard / REST API)                                      │
 │  Target: domain name or IP address                               │
 │  Mode: Fast or Deep                                              │
 └──────────────┬───────────────────────────────────────────────────┘
@@ -232,7 +228,6 @@ The system follows a **pipeline architecture** where data flows through clearly 
 │                    DELIVERY TO USER                               │
 │                                                                  │
 │  • Web Dashboard: real-time progress bar + PDF download button   │
-│  • Telegram Bot: automatic PDF delivery to chat                  │
 │  • REST API: GET /api/scans/{id}/report → PDF file response      │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -252,7 +247,6 @@ The system follows a **pipeline architecture** where data flows through clearly 
 
 - **Docker** ≥ 20.10 and **Docker Compose** ≥ 2.0
 - A **Groq API key** (free at [console.groq.com](https://console.groq.com))
-- *(Optional)* A Telegram Bot token from [@BotFather](https://t.me/BotFather)
 - *(Optional)* A Cloudflare Tunnel token for public access
 
 ### 1. Clone the Repository
@@ -279,10 +273,6 @@ PENTESTBOT_API_TOKEN=b47bc562f096436ce843868429268cca86acbbe5f6cf1971d8341d366b0
 
 # Required for public access — set to your engine's public URL
 NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Optional — Telegram bot integration
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-ALLOWED_USER_IDS=your_telegram_user_id
 
 # Optional — Cloudflare Tunnel for public exposure
 CLOUDFLARE_TUNNEL_TOKEN=your_tunnel_token
@@ -365,13 +355,7 @@ docker compose exec engine python3 main.py --check-tools
 - **Finding Detail Cards** — Each finding includes evidence status, exploitability assessment, impact classification, priority timeline, description, affected assets, source, remediation guidance, and references.
 - **Severity-Aware Filtering** — Low-signal observations are excluded from the main findings section; the report clearly states excluded observation counts.
 
-### 5. Telegram Bot (Optional)
-
-- **Interactive Commands** — `/scan <target>`, `/status`, `/history`, `/help` for managing scans via Telegram.
-- **Automatic PDF Delivery** — Completed reports are automatically sent to the user's Telegram chat.
-- **Access Control** — Configurable list of allowed Telegram user IDs.
-
-### 6. REST API Endpoints
+### 5. REST API Endpoints
 
 All endpoints require Bearer token authentication when `PENTESTBOT_API_TOKEN` is configured.
 
