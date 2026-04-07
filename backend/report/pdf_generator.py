@@ -93,6 +93,7 @@ class PDFGenerator:
         story.extend(self._section_remediation(report))
         story.extend(self._section_conclusion(report))
         story.extend(self._section_appendix(report))
+        story.extend(self._section_initial_recommendations(report))
         return story
 
     def _cover(self, report: ReportData) -> list:
@@ -370,6 +371,13 @@ class PDFGenerator:
             story.extend(self._bullet_list(warnings[:20]))
         else:
             story.extend(self._bullet_list(["No tool warnings were recorded in the final result."]))
+        return story
+
+    def _section_initial_recommendations(self, report: ReportData) -> list:
+        """AI-generated security recommendations derived from scan data."""
+        story = [PageBreak()]
+        story.extend(self._section_header("Note: Initial Security Recommendations for Developers"))
+        story.extend(self._prose(report.analysis.initial_recommendations))
         return story
 
     def _finding_block(self, index: int, finding: Finding) -> list:

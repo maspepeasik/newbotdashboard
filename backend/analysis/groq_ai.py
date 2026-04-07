@@ -32,6 +32,7 @@ class AIAnalysis:
     attack_path_simulation: str = ""
     remediation_plan: str = ""
     conclusion: str = ""
+    initial_recommendations: str = ""
     error_sections: list[str] = field(default_factory=list)
 
     def all_sections(self) -> dict[str, str]:
@@ -46,6 +47,7 @@ class AIAnalysis:
             "attack_path_simulation": self.attack_path_simulation,
             "remediation_plan": self.remediation_plan,
             "conclusion": self.conclusion,
+            "initial_recommendations": self.initial_recommendations,
         }
 
 
@@ -63,6 +65,7 @@ class GroqAI:
         "attack_path_simulation": 220,
         "remediation_plan": 300,
         "conclusion": 180,
+        "initial_recommendations": 400,
     }
 
     SYSTEM_PROMPT = textwrap.dedent("""
@@ -100,6 +103,7 @@ class GroqAI:
             ("attack_path_simulation", self._prompt_attack_paths(result, ctx)),
             ("remediation_plan", self._prompt_remediation(result, ctx)),
             ("conclusion", self._prompt_conclusion(result, ctx)),
+            ("initial_recommendations", self._prompt_initial_recommendations(result, ctx)),
         ]
 
         for start in range(0, len(sections), self.SECTION_BATCH_SIZE):
@@ -453,6 +457,33 @@ Requirements:
 Write 2 short paragraphs.
 """.strip()
 
+    def _prompt_initial_recommendations(self, result: AggregatedResult, ctx: str) -> str:
+        return f"""
+Write an "Initial Security Recommendations for Developers" note for the end of a penetration testing report.
+
+Target: {result.target}
+Findings: {result.total_findings}
+Severity summary: {result.severity_summary}
+Technologies detected: {result.technologies[:10]}
+Open ports: {[port.port for port in result.open_ports[:20]]}
+TLS findings count: {len(result.tls_findings)}
+CDN detected: {result.cdn_detected}
+
+Full scan data:
+{ctx}
+
+Requirements:
+- Based on ALL available scan data, provide practical, prioritized security recommendations that developers should implement first to secure this specific website.
+- Tailor the recommendations to the actual technologies, services, and weaknesses discovered during the scan.
+- Cover areas such as: HTTPS and transport security, security headers, input validation, dependency management, access control, logging, server hardening, and ongoing security practices.
+- Do not repeat the remediation section verbatim; instead focus on foundational developer-level actions that apply as an initial security baseline informed by what the scan revealed.
+- Be specific where the data supports it (e.g., if a particular header is missing or a specific service is exposed, mention it).
+- Write in clear, direct prose paragraphs without markdown formatting, bullet points, or headings.
+- Keep the tone constructive and actionable.
+
+Write 4 to 6 short paragraphs.
+""".strip()
+
     @staticmethod
     def _rate_limit_wait_seconds(exc: httpx.HTTPStatusError, attempt: int) -> int:
         detail = ""
@@ -528,6 +559,17 @@ Write 2 short paragraphs.
             "conclusion": (
                 f"The automated review of {result.target} is complete. "
                 "The result should be used as an engineering-oriented starting point for remediation and targeted manual verification, not as a final statement that the environment is secure."
+            ),
+            "initial_recommendations": (
+                f"Based on the automated assessment of {result.target}, developers should prioritize the following baseline security measures. "
+                "Enforce HTTPS across all endpoints using TLS 1.2 or higher and enable HSTS with includeSubDomains. "
+                "Deploy essential security headers including Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, and Referrer-Policy. "
+                "Validate and sanitize all user input on the server side using parameterized queries and context-aware output encoding. "
+                "Keep all software dependencies current and monitor for known vulnerabilities using automated tools. "
+                "Implement strong authentication with multi-factor authentication for administrative accounts and apply least-privilege access control. "
+                "Suppress server version banners and technology fingerprints that aid attacker reconnaissance. "
+                "Enable centralized logging for authentication events and access control failures. "
+                "Schedule periodic security assessments combining automated scanning with manual penetration testing."
             ),
         }
         return fallbacks.get(section, "Analysis unavailable for this section.")
