@@ -307,7 +307,12 @@ class JobManager:
             # ── Stage 1: Recon — Subdomain Discovery ─────────────────────
             await notify("Recon", f"Discovering subdomains for {job.target}...")
             recon = ReconStage(ctx)
-            await asyncio.wait_for(recon.run(), timeout=self.config.scan.subfinder_timeout * 3)
+            recon_timeout = max(
+                self.config.scan.subfinder_timeout,
+                self.config.scan.assetfinder_timeout,
+                self.config.scan.amass_timeout if self.config.scan.enable_amass else 0
+            ) + 60
+            await asyncio.wait_for(recon.run(), timeout=recon_timeout)
             await finalize_stage("Recon", len(ctx.get("subdomains", [])))
 
             # ── Stage 2: Resolver — DNS Resolution ───────────────────────

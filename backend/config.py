@@ -75,7 +75,7 @@ class ScanConfig:
     # Nmap
     nmap_flags: str            = "-sV -sC"
     nmap_timing: str           = "T4"
-    nmap_timeout: int          = 800
+    nmap_timeout: int          = 1800
     nmap_max_ports: int        = 50          # cap nmap to top N discovered ports
 
     # HTTPX
@@ -94,7 +94,7 @@ class ScanConfig:
     enable_gobuster: bool      = True
     gobuster_timeout: int      = 180
     enable_dirsearch: bool     = False
-    dirsearch_timeout: int     = 180
+    dirsearch_timeout: int     = 240
 
     # Fingerprinting (WhatWeb, Wafw00f, Webanalyze)
     enable_fingerprint: bool   = True
@@ -110,7 +110,7 @@ class ScanConfig:
 
     # Nikto
     enable_nikto: bool         = False
-    nikto_timeout: int         = 300
+    nikto_timeout: int         = 600
 
     # WPScan / Joomscan
     enable_wpscan: bool        = False
@@ -120,16 +120,16 @@ class ScanConfig:
 
     # S3Scanner
     enable_s3scanner: bool     = False
-    s3scanner_timeout: int     = 120
+    s3scanner_timeout: int     = 240
 
     # testssl.sh / sslyze
     enable_sslyze: bool        = True
     sslyze_timeout: int        = 180
-    testssl_timeout: int       = 500
+    testssl_timeout: int       = 1000
 
     # Pipeline timeouts
     stage_timeout: int         = 300         # per-stage default timeout
-    total_scan_timeout: int    = 4500        # entire scan
+    total_scan_timeout: int    = 9000        # entire scan
 
 
 @dataclass

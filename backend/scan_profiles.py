@@ -32,7 +32,7 @@ DEEP_OVERRIDES: dict = {
     "nmap_flags":            "-sV -sC --script vuln",
     "nmap_timing":           "T3",
     "nmap_max_ports":        200,
-    "nmap_timeout":          1200,
+    "nmap_timeout":          3600,
 
     # HTTP probing — higher throughput
     "httpx_threads":         80,
@@ -53,11 +53,11 @@ DEEP_OVERRIDES: dict = {
     "enable_amass":          True,
     "amass_timeout":         600,
     "enable_nikto":          True,
-    "nikto_timeout":         600,
+    "nikto_timeout":         1200,
     "enable_dirsearch":      True,
-    "dirsearch_timeout":     300,
+    "dirsearch_timeout":     480,
     "enable_s3scanner":      True,
-    "s3scanner_timeout":     240,
+    "s3scanner_timeout":     480,
 
     # Note: WPScan / Joomscan are NOT force-enabled here.
     # They are conditionally enabled in the VulnScan stage when
@@ -65,7 +65,7 @@ DEEP_OVERRIDES: dict = {
 
     # Pipeline timeouts — longer for thorough scans
     "stage_timeout":         600,
-    "total_scan_timeout":    9000,
+    "total_scan_timeout":    14400,
 }
 
 # Deep-mode value for max nuclei targets (used by VulnScanStage)

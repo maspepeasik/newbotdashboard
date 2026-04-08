@@ -5,6 +5,7 @@ ENV GOBIN=/go/bin
 ENV PATH=$PATH:/go/bin
 ENV CGO_ENABLED=1
 ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=off
 ENV GOTOOLCHAIN=auto
 
 RUN apt-get update -qq \
