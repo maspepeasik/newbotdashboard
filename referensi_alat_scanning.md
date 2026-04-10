@@ -239,7 +239,7 @@ webanalyze -update
 
 #### testssl.sh (Kedua Mode)
 ```bash
-testssl.sh --quiet --jsonfile <testssl_output.json> --severity LOW --fast --sneaky <host:port>
+testssl.sh --quiet --jsonfile <testssl_output.json> --severity LOW --fast --sneaky --nodns=none --ip=one --connect-timeout 5 --openssl-timeout 5 <host:port>
 # --fast: mode cepat
 # --sneaky: meniru browser biasa
 # Timeout: 500 detik
@@ -331,7 +331,7 @@ Mode scan default adalah **Quick (cepat)**. Deep mode menerapkan override dari [
 | `nmap_flags` | `-sV -sC` | `-sV -sC --script vuln` | Deep menambahkan skrip kerentanan NSE |
 | `nmap_timing` | `T4` (agresif) | `T3` (normal) | Deep lebih teliti, lebih lambat |
 | `nmap_max_ports` | `50` | `200` | Deep mem-fingerprint 4× lebih banyak port |
-| `nmap_timeout` | `800d` | `1200d` (20 mnt) | Timeout lebih lama untuk nmap deep |
+| `nmap_timeout` | `1800d` (30 mnt) | `3600d` (60 mnt) | Timeout lebih lama untuk nmap deep |
 | **HTTP Probing** ||||
 | `httpx_threads` | `50` | `80` | Konkurensi lebih tinggi di deep |
 | `httpx_rate_limit` | `150` req/d | `250` req/d | Probing lebih cepat di deep |
@@ -347,16 +347,16 @@ Mode scan default adalah **Quick (cepat)**. Deep mode menerapkan override dari [
 | Maks target nuclei | `4` URL | `12` URL | 3× lebih banyak endpoint yang dipindai |
 | **Timeout Pipeline** ||||
 | `stage_timeout` | `300d` (5 mnt) | `600d` (10 mnt) | Setiap tahap mendapat waktu 2× lipat |
-| `total_scan_timeout` | `4500d` (~75 mnt) | `9000d` (~150 mnt) | Seluruh scan bisa berjalan 2× lebih lama |
+| `total_scan_timeout` | `3600d` (~60 mnt) | `14400d` (~240 mnt) | Seluruh scan bisa berjalan lebih lama |
 
 ### Alat yang Hanya Aktif di Deep Mode
 
 | Alat | Kegunaan | Timeout |
 |------|----------|---------|
 | `amass` | Enumerasi subdomain komprehensif (lebih berat dari subfinder) | 600d |
-| `nikto` | Scanner miskonfigurasi & kerentanan web server | 600d |
-| `dirsearch` | Brute-force direktori & file | 300d |
-| `s3scanner` | Scanning miskonfigurasi bucket AWS S3 | 240d |
+| `nikto` | Scanner miskonfigurasi & kerentanan web server | 1800d |
+| `dirsearch` | Brute-force direktori & file | 480d |
+| `s3scanner` | Scanning miskonfigurasi bucket AWS S3 | 480d |
 
 ### Alat yang Diaktifkan Secara Kondisional (Kedua Mode)
 
@@ -511,7 +511,7 @@ Di [web_discovery.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhisti
 │  • Kedalaman crawl: 2 level                                 │
 │  • 150 URL yang ditemukan disimpan                           │
 │  • Nikto, Amass, Dirsearch, S3Scanner: NONAKTIF             │
-│  • ~75 menit total timeout                                  │
+│  • ~60 menit total timeout                                  │
 ├─────────────────────────────────────────────────────────────┤
 │                  DEEP MODE (Mendalam)                        │
 │                                                             │
@@ -522,7 +522,7 @@ Di [web_discovery.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhisti
 │  • 500 URL yang ditemukan disimpan                           │
 │  • Nikto, Amass, Dirsearch, S3Scanner: AKTIF                │
 │  • Nmap menambahkan --script vuln                           │
-│  • ~150 menit total timeout                                 │
+│  • ~240 menit total timeout                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 

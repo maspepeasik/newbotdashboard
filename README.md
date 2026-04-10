@@ -18,7 +18,7 @@
 
 | Field | Detail |
 |---|---|
-| **Prepared by** | Narendra Yudhistira Bagaskoro, Rafa Nuragani Kurniawan |
+| **Prepared by** | <ul><li>Narendra Yudhistira Bagaskoro</li><li>Rafa Nuragani Kurniawan</li></ul> |
 | **Institution** | SMKN 2 Yogyakarta — Sistem Informasi Jaringan dan Aplikasi (SIJA) |
 | **Version** | 1.0.0 |
 
@@ -236,8 +236,8 @@ The system follows a **pipeline architecture** where data flows through clearly 
 
 | Mode | Description |
 |---|---|
-| **Fast** (default) | Top 1000 ports, standard Nuclei templates (critical/high/medium), shallow crawl depth (2), core tools only. Completes in ~10–20 minutes. |
-| **Deep** | Full port range, extended Nuclei templates (includes low severity), crawl depth 4, enables additional tools (Amass, Nikto, Dirsearch, S3Scanner). Completes in ~30–60+ minutes. |
+| **Fast** (default) | Top 1000 ports, standard Nuclei templates (critical/high/medium), shallow crawl depth (2), core tools only. Completes in ~15–30 minutes. |
+| **Deep** | Full port range, extended Nuclei templates (includes low severity), crawl depth 4, enables additional tools (Amass, Nikto, Dirsearch, S3Scanner). Completes in ~60–240 minutes. |
 
 ---
 

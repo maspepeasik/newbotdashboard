@@ -38,7 +38,7 @@ The scan mode defaults to **Quick (fast)**. Deep mode applies overrides from [sc
 | `nmap_flags` | `-sV -sC` | `-sV -sC --script vuln` | Deep adds NSE vuln scripts |
 | `nmap_timing` | `T4` (aggressive) | `T3` (normal) | Deep is more thorough, slower |
 | `nmap_max_ports` | `50` | `200` | Deep fingerprints 4× more ports |
-| `nmap_timeout` | `800s` | `1200s` (20 min) | Longer timeout for deep nmap |
+| `nmap_timeout` | `1800s` (30 min) | `3600s` (60 min) | Longer timeout for deep nmap |
 | **HTTP Probing** ||||
 | `httpx_threads` | `50` | `80` | Higher concurrency in deep |
 | `httpx_rate_limit` | `150` req/s | `250` req/s | Faster probing in deep |
@@ -54,16 +54,16 @@ The scan mode defaults to **Quick (fast)**. Deep mode applies overrides from [sc
 | Max nuclei targets | `4` URLs | `12` URLs | 3× more endpoints scanned |
 | **Pipeline Timeouts** ||||
 | `stage_timeout` | `300s` (5 min) | `600s` (10 min) | Each stage gets double the time |
-| `total_scan_timeout` | `4500s` (~75 min) | `9000s` (~150 min) | Entire scan can run 2× longer |
+| `total_scan_timeout` | `3600s` (~60 min) | `14400s` (4 hours) | Entire scan can run significantly longer |
 
 ### Tools Only Enabled in Deep Mode
 
 | Tool | Purpose | Timeout |
 |------|---------|---------|
 | `amass` | Comprehensive subdomain enumeration (heavier than subfinder) | 600s |
-| `nikto` | Web server misconfiguration & vulnerability scanner | 600s |
-| `dirsearch` | Directory & file brute-forcing | 300s |
-| `s3scanner` | AWS S3 bucket misconfiguration scanning | 240s |
+| `nikto` | Web server misconfiguration & vulnerability scanner | 1800s |
+| `dirsearch` | Directory & file brute-forcing | 480s |
+| `s3scanner` | AWS S3 bucket misconfiguration scanning | 480s |
 
 ### Conditionally Enabled Tools (Both Modes)
 
@@ -218,7 +218,7 @@ In [web_discovery.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhisti
 │  • Crawl depth: 2 levels                                    │
 │  • 150 discovered URLs kept                                 │
 │  • Nikto, Amass, Dirsearch, S3Scanner: DISABLED             │
-│  • ~75 min total timeout                                    │
+│  • ~60 min total timeout                                    │
 ├─────────────────────────────────────────────────────────────┤
 │                    DEEP MODE (Thorough)                      │
 │                                                             │
@@ -229,6 +229,6 @@ In [web_discovery.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhisti
 │  • 500 discovered URLs kept                                 │
 │  • Nikto, Amass, Dirsearch, S3Scanner: ENABLED              │
 │  • Nmap adds --script vuln                                  │
-│  • ~150 min total timeout                                   │
+│  • ~240 min total timeout                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
