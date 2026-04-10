@@ -1,7 +1,7 @@
 <h1 align="center">ScanBot Dashboard</h1>
 
 <p align="center">
-  <i>Automated Penetration Testing Platform with AI-Powered Reporting</i>
+  <i>Automated Scanning Bots Platform with AI-Powered Reporting</i>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 ## 📖 Project Overview
 
-**ScanBot Dashboard** is a full-stack automated penetration testing platform that combines a multi-tool reconnaissance engine with an AI-powered report generator and a real-time web dashboard. The system is designed for security professionals and developers who need to assess the external attack surface of a domain or IP address without performing active exploitation.
+**ScanBot Dashboard** is a full-stack automated scanning bots platform that combines a multi-tool reconnaissance engine with an AI-powered report generator and a real-time web dashboard. The system is designed for security professionals and developers who need to assess the external attack surface of a domain or IP address without performing active exploitation.
 
 The platform solves the following problems:
 
@@ -333,7 +333,7 @@ docker compose exec engine python3 main.py --check-tools
 - **Scan Submission** — Enter a domain or IP address, select Fast or Deep mode, and launch a scan with a single click.
 - **Real-Time Progress Tracking** — Live progress bar updates across all 11 pipeline stages with percentage indicators.
 - **Scan History** — View recent scans with status, risk level, finding counts, and duration.
-- **PDF Report Download** — Download the AI-generated professional penetration testing report directly from the dashboard.
+- **PDF Report Download** — Download the AI-generated professional scanning bots report directly from the dashboard.
 - **Responsive Design** — Modern, dark-themed interface optimized for desktop and mobile.
 
 ### 2. Scanning Engine (Python)
