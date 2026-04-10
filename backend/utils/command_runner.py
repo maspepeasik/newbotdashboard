@@ -117,11 +117,39 @@ class CommandRunner:
                 cwd=effective_cwd,
             )
 
-            stdin_bytes = stdin_data.encode() if stdin_data else None
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(input=stdin_bytes),
-                timeout=effective_timeout,
-            )
+            stdout_bytes = bytearray()
+            stderr_bytes = bytearray()
+            
+            async def read_stream(stream, is_stderr):
+                try:
+                    while True:
+                        data = await stream.read(8192)
+                        if not data:
+                            break
+                        if is_stderr:
+                            stderr_bytes.extend(data)
+                        else:
+                            stdout_bytes.extend(data)
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    pass
+
+            if stdin_data:
+                try:
+                    proc.stdin.write(stdin_data.encode())
+                    proc.stdin.write_eof()
+                    await proc.stdin.wait_closed()
+                except Exception:
+                    pass
+
+            tasks = [
+                asyncio.create_task(read_stream(proc.stdout, False)),
+                asyncio.create_task(read_stream(proc.stderr, True)),
+                asyncio.create_task(proc.wait())
+            ]
+
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=effective_timeout)
 
             returncode = proc.returncode or 0
             stdout = stdout_bytes.decode("utf-8", errors="replace")
@@ -132,12 +160,14 @@ class CommandRunner:
             if proc:
                 try:
                     proc.kill()
-                    await proc.communicate()
                 except Exception:
                     pass
+            for t in tasks:
+                t.cancel()
             returncode = -1
-            stdout = ""
-            stderr = f"[TIMEOUT] Command exceeded {effective_timeout}s limit."
+            stdout = stdout_bytes.decode("utf-8", errors="replace")
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
+            stderr += f"\n[TIMEOUT] Command exceeded {effective_timeout}s limit."
             logger.warning(f"TIMEOUT [{effective_timeout}s]: {' '.join(effective_cmd[:3])}")
 
         except FileNotFoundError:

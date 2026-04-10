@@ -57,7 +57,7 @@ class TLSScanStage(BaseStage):
                 "--severity", "LOW",
                 "--fast",
                 "--sneaky",
-                "--nodns",
+                "--nodns=none",
                 "--ip=one",
                 "--connect-timeout", "5",
                 "--openssl-timeout", "5",

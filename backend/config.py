@@ -110,7 +110,7 @@ class ScanConfig:
 
     # Nikto
     enable_nikto: bool         = False
-    nikto_timeout: int         = 600
+    nikto_timeout: int         = 900
 
     # WPScan / Joomscan
     enable_wpscan: bool        = False

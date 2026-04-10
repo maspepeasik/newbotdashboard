@@ -308,9 +308,9 @@ class JobManager:
             await notify("Recon", f"Discovering subdomains for {job.target}...")
             recon = ReconStage(ctx)
             recon_timeout = max(
-                self.config.scan.subfinder_timeout,
-                self.config.scan.assetfinder_timeout,
-                self.config.scan.amass_timeout if self.config.scan.enable_amass else 0
+                profiled_config.subfinder_timeout,
+                profiled_config.assetfinder_timeout,
+                profiled_config.amass_timeout if profiled_config.enable_amass else 0
             ) + 60
             await asyncio.wait_for(recon.run(), timeout=recon_timeout)
             await finalize_stage("Recon", len(ctx.get("subdomains", [])))
@@ -331,22 +331,22 @@ class JobManager:
             host_count = len(ctx.get("live_ips", [ctx["target"]]))
             await notify("PortScan", f"Scanning ports on {host_count} hosts...")
             portscan = PortScanStage(ctx)
-            await asyncio.wait_for(portscan.run(), timeout=self.config.scan.naabu_timeout)
+            await asyncio.wait_for(portscan.run(), timeout=profiled_config.naabu_timeout)
             await finalize_stage("PortScan", len(ctx.get("open_ports", [])))
 
             # ── Stage 5: Service Detection ────────────────────────────────
             port_count = len(ctx.get("open_ports", []))
             await notify("ServiceScan", f"Detecting services on {port_count} open ports...")
             service_scan = ServiceScanStage(ctx)
-            await asyncio.wait_for(service_scan.run(), timeout=self.config.scan.nmap_timeout)
+            await asyncio.wait_for(service_scan.run(), timeout=profiled_config.nmap_timeout)
             await finalize_stage("ServiceScan", len(ctx.get("services", [])))
 
             # ── Stage 6: HTTP Probing ─────────────────────────────────────
             await notify("HTTPProbe", "Probing HTTP/HTTPS endpoints...")
             http_probe = HttpProbeStage(ctx)
             http_probe_timeout = max(
-                self.config.scan.httpx_timeout * 20 + 30,
-                self.config.scan.stage_timeout,
+                profiled_config.httpx_timeout * 20 + 30,
+                profiled_config.stage_timeout,
             )
             await asyncio.wait_for(http_probe.run(), timeout=http_probe_timeout)
             await finalize_stage("HTTPProbe", len(ctx.get("live_hosts", [])))
@@ -354,15 +354,15 @@ class JobManager:
             # ── Stage 7: Fingerprinting ───────────────────────────────────
             await notify("Fingerprint", "Running fingerprinting (WhatWeb, Wafw00f, Webanalyze)...")
             fingerprint = FingerprintStage(ctx)
-            await asyncio.wait_for(fingerprint.run(), timeout=self.config.scan.stage_timeout)
+            await asyncio.wait_for(fingerprint.run(), timeout=profiled_config.stage_timeout)
             await finalize_stage("Fingerprint", len(ctx.get("fingerprint_technologies", [])))
 
             # ── Stage 8: Web Discovery ────────────────────────────────────
             await notify("WebDiscovery", "Expanding web attack surface from live endpoints...")
             web_discovery = WebDiscoveryStage(ctx)
             web_discovery_timeout = max(
-                self.config.scan.katana_timeout + self.config.scan.gau_timeout + 30,
-                self.config.scan.stage_timeout,
+                profiled_config.katana_timeout + profiled_config.gau_timeout + 30,
+                profiled_config.stage_timeout,
             )
             await asyncio.wait_for(web_discovery.run(), timeout=web_discovery_timeout)
             await finalize_stage("WebDiscovery", len(ctx.get("discovered_urls", [])))
@@ -371,18 +371,18 @@ class JobManager:
             live_count = len(ctx.get("live_hosts", []))
             await notify("VulnScan", f"Running vuln scan on {live_count} endpoints...")
             vuln_scan = VulnScanStage(ctx)
-            await asyncio.wait_for(vuln_scan.run(), timeout=self.config.scan.nuclei_timeout + self.config.scan.nikto_timeout)
+            await asyncio.wait_for(vuln_scan.run(), timeout=profiled_config.nuclei_timeout + profiled_config.nikto_timeout)
             await finalize_stage("VulnScan", ctx.get("nuclei_findings_count", 0))
 
             # ── Stage 8: TLS Analysis ─────────────────────────────────────
             await notify("TLSScan", f"Analyzing TLS configuration for {job.target}...")
             tls_scan = TLSScanStage(ctx)
             try:
-                await asyncio.wait_for(tls_scan.run(), timeout=self.config.scan.testssl_timeout)
+                await asyncio.wait_for(tls_scan.run(), timeout=profiled_config.testssl_timeout)
             except asyncio.TimeoutError:
                 scan_log.warning(
                     "[TLSScan] Stage exceeded %ss timeout; continuing with degraded TLS coverage.",
-                    self.config.scan.testssl_timeout,
+                    profiled_config.testssl_timeout,
                 )
                 await tls_scan.handle_timeout()
             await finalize_stage("TLSScan")

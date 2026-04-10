@@ -1,6 +1,6 @@
 {
-  "name": "PentestBot",
-  "short_name": "PentestBot",
+  "name": "CyberScan",
+  "short_name": "CyberScan",
   "description": "Automated Security Assessment Platform",
   "start_url": "/",
   "display": "standalone",

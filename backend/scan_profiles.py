@@ -53,7 +53,7 @@ DEEP_OVERRIDES: dict = {
     "enable_amass":          True,
     "amass_timeout":         600,
     "enable_nikto":          True,
-    "nikto_timeout":         1200,
+    "nikto_timeout":         1800,
     "enable_dirsearch":      True,
     "dirsearch_timeout":     480,
     "enable_s3scanner":      True,
