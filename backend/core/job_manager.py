@@ -416,6 +416,12 @@ class JobManager:
             ai = GroqAI(self.config.groq)
             try:
                 analysis = await ai.analyze(normalized)
+                # Enrich top findings with AI-rewritten descriptions
+                try:
+                    await ai.enrich_findings(normalized.findings)
+                except Exception as enrich_err:
+                    logger.warning(f"Finding enrichment failed (non-fatal): {enrich_err}")
+                    ctx["tool_errors"].append(f"AIAnalysis: Finding enrichment failed: {enrich_err}")
             finally:
                 await ai.close()
             ctx["analysis"] = analysis

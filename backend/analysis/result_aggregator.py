@@ -22,25 +22,80 @@ SEVERITY_WEIGHT = {
 }
 
 DANGEROUS_PORTS = {
-    21:    ("FTP",           "high",   "FTP transmits credentials in plaintext."),
-    22:    ("SSH",           "medium", "SSH is exposed; ensure key-only auth and hardened ciphers."),
-    23:    ("Telnet",        "critical","Telnet is unencrypted and must be disabled immediately."),
-    25:    ("SMTP",          "medium", "SMTP exposed; verify it is not an open relay."),
-    53:    ("DNS",           "low",    "DNS exposed publicly; restrict recursive queries."),
-    110:   ("POP3",          "medium", "POP3 transmits credentials in plaintext."),
-    143:   ("IMAP",          "medium", "IMAP transmits credentials in plaintext."),
-    389:   ("LDAP",          "high",   "LDAP exposed; ensure authentication is enforced."),
-    445:   ("SMB",           "high",   "SMB exposed; high risk of EternalBlue-style exploits."),
-    1433:  ("MSSQL",         "high",   "MSSQL exposed publicly; restrict to trusted IPs only."),
-    1521:  ("Oracle",        "high",   "Oracle DB exposed; restrict with firewall rules."),
-    3306:  ("MySQL",         "high",   "MySQL exposed publicly; restrict access immediately."),
-    3389:  ("RDP",           "critical","RDP is a primary attack vector; restrict to VPN only."),
-    5432:  ("PostgreSQL",    "high",   "PostgreSQL exposed; ensure strong auth and IP filtering."),
-    5900:  ("VNC",           "critical","VNC exposed; often has weak/no authentication."),
-    6379:  ("Redis",         "critical","Redis exposed; unauthenticated access is trivially exploitable."),
-    8080:  ("HTTP-Alt",      "low",    "Alternative HTTP port; review for sensitive services."),
-    9200:  ("Elasticsearch", "critical","Elasticsearch exposed; data may be publicly readable."),
-    27017: ("MongoDB",       "critical","MongoDB exposed; data may be accessible without credentials."),
+    21:    ("FTP",           "high",
+           "The FTP service is reachable from the Internet and transmits credentials in cleartext. "
+           "An attacker on the same network segment can passively capture usernames and passwords. "
+           "Even when not actively exploited, FTP exposure signals weak perimeter controls."),
+    22:    ("SSH",           "medium",
+           "The SSH service is directly reachable. While SSH itself is encrypted, public exposure "
+           "invites automated brute-force attacks against password-based authentication. "
+           "Weak credentials or outdated SSH versions could allow unauthorized remote access."),
+    23:    ("Telnet",        "critical",
+           "Telnet transmits all data, including credentials, in cleartext without any encryption. "
+           "This service is considered obsolete and any Internet-facing exposure represents an "
+           "immediate, critical risk of credential theft and unauthorized system access."),
+    25:    ("SMTP",          "medium",
+           "The SMTP service is externally accessible. If misconfigured as an open relay, it can be "
+           "abused to send spam or phishing emails on behalf of the target domain. Exposed SMTP "
+           "also reveals mail infrastructure details useful for targeted social engineering."),
+    53:    ("DNS",           "low",
+           "A DNS service is publicly reachable. If recursive queries are enabled for external clients, "
+           "this server could be leveraged for DNS amplification attacks or cache poisoning. "
+           "Public DNS also exposes internal naming conventions."),
+    110:   ("POP3",          "medium",
+           "The POP3 mail retrieval service is exposed. Unless upgraded to POP3S, credentials are "
+           "transmitted in cleartext, allowing passive interception of email account passwords."),
+    143:   ("IMAP",          "medium",
+           "The IMAP mail service is publicly reachable. Without STARTTLS or IMAPS, credentials "
+           "and email contents may be intercepted in transit by an attacker."),
+    389:   ("LDAP",          "high",
+           "An LDAP directory service is externally accessible. If anonymous binding is permitted, "
+           "attackers can enumerate users, groups, and organizational structure. LDAP exposure "
+           "frequently enables credential attacks and internal reconnaissance."),
+    445:   ("SMB",           "high",
+           "The SMB file sharing service is reachable from the Internet. SMB has a history of critical "
+           "remote code execution vulnerabilities (e.g., EternalBlue/MS17-010). Public SMB exposure "
+           "is a high-value target for ransomware operators and worm propagation."),
+    1433:  ("MSSQL",         "high",
+           "Microsoft SQL Server is directly accessible from the Internet. Database services should "
+           "never be publicly exposed. Attackers routinely scan for MSSQL to attempt brute-force "
+           "authentication, execute stored procedures, or exfiltrate data."),
+    1521:  ("Oracle",        "high",
+           "Oracle Database listener is externally reachable. Direct database exposure allows attackers "
+           "to probe for default credentials, enumerate database instances, and attempt exploitation "
+           "of known Oracle vulnerabilities."),
+    3306:  ("MySQL",         "high",
+           "MySQL is accessible from the Internet. Direct database exposure allows brute-force "
+           "attacks against database credentials. If compromised, an attacker gains full access to "
+           "stored data and potentially command execution via SQL capabilities."),
+    3389:  ("RDP",           "critical",
+           "Remote Desktop Protocol is directly reachable from the Internet. RDP is the single most "
+           "common initial access vector for ransomware gangs. Public RDP exposure, even with NLA "
+           "enabled, invites credential brute-forcing and exploitation of known RDP vulnerabilities."),
+    5432:  ("PostgreSQL",    "high",
+           "PostgreSQL is externally accessible. Database services exposed to the Internet are "
+           "routinely targeted for credential brute-forcing. A compromised PostgreSQL instance "
+           "can lead to full data exfiltration and, via COPY or extensions, potential command execution."),
+    5900:  ("VNC",           "critical",
+           "The VNC remote desktop service is reachable from the Internet. Many VNC implementations "
+           "have weak or absent authentication by default. Public VNC exposure typically allows "
+           "attackers to gain full graphical desktop access with minimal effort."),
+    6379:  ("Redis",         "critical",
+           "Redis is accessible from the Internet. Redis ships without authentication by default, "
+           "meaning any external client can read, modify, or delete all stored data. Unauthenticated "
+           "Redis is also trivially exploitable for remote code execution via crafted payloads."),
+    8080:  ("HTTP-Alt",      "low",
+           "An alternative HTTP service is running on port 8080. This commonly hosts development "
+           "servers, management panels, or proxy interfaces that may not have the same security "
+           "hardening as the primary web service."),
+    9200:  ("Elasticsearch", "critical",
+           "Elasticsearch is directly accessible from the Internet. By default, Elasticsearch has no "
+           "authentication, meaning all indexed data is publicly readable and modifiable. This is "
+           "one of the most common causes of large-scale data breaches involving search infrastructure."),
+    27017: ("MongoDB",       "critical",
+           "MongoDB is reachable from the Internet. Historically, many MongoDB deployments lack "
+           "authentication, exposing entire databases to unauthenticated read and write access. "
+           "Public MongoDB exposure is a leading cause of data breach incidents."),
 }
 
 
@@ -273,18 +328,20 @@ class ResultAggregator:
             fid = f"nuclei-{nf.get('template_id') or _finding_fingerprint(nf)}"
             severity = nf.get("severity", "info")
             is_validated = severity in {"critical", "high"}
+            raw_name = nf.get("name", "Nuclei Finding")
+            raw_desc = nf.get("description", "")
             add_finding(Finding(
                 id          = fid,
-                title       = nf.get("name", "Nuclei Finding"),
+                title       = _clean_nuclei_title(raw_name, nf.get("template_id", "")),
                 severity    = severity,
-                description = nf.get("description", ""),
+                description = raw_desc or f"Nuclei template '{nf.get('template_id', 'unknown')}' matched at the target. This indicates a known pattern was detected that warrants further investigation.",
                 affected    = [nf.get("matched_at", nf.get("host", result.target))],
                 source      = "nuclei",
                 references  = nf.get("references", []),
                 cvss        = nf.get("cvss_score"),
                 cve_ids     = nf.get("cve_ids", []),
                 tags        = nf.get("tags", []),
-                extra       = {"template_id": nf.get("template_id", ""), "kind": "nuclei"},
+                extra       = {"template_id": nf.get("template_id", ""), "kind": "nuclei", "raw_description": raw_desc},
                 evidence_status="Structured scanner evidence",
                 exploitability="Likely exploitable" if is_validated else "Needs manual validation",
                 impact="Direct security weakness",
@@ -295,35 +352,39 @@ class ResultAggregator:
         # Nikto findings
         for nf in ctx.get("nikto_findings", []):
             fid = f"nikto-{_finding_fingerprint(nf)}"
+            raw_desc = nf.get("description", "Nikto Finding")
+            title, description = _clean_nikto_finding(raw_desc)
             add_finding(Finding(
                 id          = fid,
-                title       = _truncate(nf.get("description", "Nikto Finding"), 80),
+                title       = title,
                 severity    = nf.get("severity", "info"),
-                description = nf.get("description", ""),
+                description = description,
                 affected    = [result.target],
                 source      = "nikto",
                 evidence_status="Single-tool heuristic evidence",
                 exploitability="Needs manual validation",
                 impact="Potential web application weakness",
                 priority="Short-Term Fix (7-30 days)",
-                extra={"kind": "nikto"},
+                extra={"kind": "nikto", "raw_description": raw_desc},
             ))
 
         # TLS findings
         for tf in result.tls_findings:
             fid = f"tls-{_finding_fingerprint(tf)}"
+            raw_id = tf.get('id', 'Issue')
+            human_title = _humanize_tls_id(raw_id)
             add_finding(Finding(
                 id          = fid,
-                title       = f"TLS: {tf.get('id', 'Issue')}",
+                title       = human_title,
                 severity    = tf.get("severity", "info"),
-                description = tf.get("description", ""),
+                description = tf.get("description", "") or f"The TLS scanner identified a transport security observation: {raw_id}. Review the server's TLS configuration for alignment with current best practices.",
                 affected    = [f"{result.target}:443"],
                 source      = "testssl.sh",
                 evidence_status="Transport-layer observation",
                 exploitability="Configuration weakness",
                 impact="Transport security weakness",
                 priority="Hardening / Best Practice",
-                extra={"kind": "tls"},
+                extra={"kind": "tls", "raw_id": raw_id},
             ))
 
         # Dangerous port findings
@@ -371,6 +432,94 @@ class ResultAggregator:
 
 def _truncate(s: str, n: int) -> str:
     return s[:n - 3] + "..." if len(s) > n else s
+
+
+def _clean_nikto_finding(raw: str) -> tuple[str, str]:
+    """Clean Nikto output into (title, description). Strips OSVDB prefixes and tool formatting."""
+    import re
+    text = raw.strip()
+    # Strip OSVDB prefix like "OSVDB-3092: "
+    text = re.sub(r'^OSVDB-\d+:\s*', '', text)
+    # Strip Nikto ID prefix like "+ /path: "
+    text = re.sub(r'^\+\s*', '', text)
+    # Clean path prefix used as pseudo-title
+    text = re.sub(r'^/\S+:\s*', '', text).strip()
+
+    if not text:
+        return "Web Server Finding (Nikto)", raw
+
+    # Generate a clean title from first sentence
+    first_sentence = text.split('. ')[0].strip().rstrip('.')
+    title = _truncate(first_sentence, 90)
+
+    # If the raw text is very short, expand it
+    if len(text) < 60:
+        description = (
+            f"{text} This was identified by the Nikto web server scanner during automated "
+            f"testing. Manual verification is recommended to confirm exploitability."
+        )
+    else:
+        description = text
+
+    return title, description
+
+
+def _clean_nuclei_title(name: str, template_id: str) -> str:
+    """Clean Nuclei template names into readable titles."""
+    # Nuclei names like "http-missing-security-headers:x-frame-options" → "Missing Security Header: X-Frame-Options"
+    title = name.strip()
+    if not title or title == template_id:
+        # Template ID fallback: convert kebab-case to title case
+        title = template_id.replace('-', ' ').replace('_', ' ').replace(':', ': ').title()
+    return title
+
+
+# TLS ID to human-readable title mapping
+_TLS_HUMAN_TITLES: dict[str, str] = {
+    "heartbleed":      "Heartbleed Vulnerability (CVE-2014-0160)",
+    "ccs":             "CCS Injection Vulnerability (CVE-2014-0224)",
+    "ticketbleed":     "Ticketbleed Vulnerability (CVE-2016-9244)",
+    "robot":           "ROBOT Attack (RSA Key Exchange Vulnerability)",
+    "secure_renego":   "Insecure TLS Renegotiation",
+    "secure_client_renego": "Client-Initiated Renegotiation Allowed",
+    "crime":           "CRIME Attack (TLS Compression Enabled)",
+    "breach":          "BREACH Attack (HTTP Compression over TLS)",
+    "poodle_ssl":      "POODLE Attack (SSLv3 Vulnerability)",
+    "sweet32":         "Sweet32 Attack (64-bit Block Cipher Weakness)",
+    "freak":           "FREAK Attack (Export Cipher Downgrade)",
+    "drown":           "DROWN Attack (SSLv2 Cross-Protocol)",
+    "logjam":          "Logjam Attack (Weak Diffie-Hellman Parameters)",
+    "beast":           "BEAST Attack (CBC Mode in TLS 1.0)",
+    "lucky13":         "Lucky13 Timing Attack",
+    "rc4":             "RC4 Cipher Suite in Use",
+    "fallback_scsv":   "TLS Fallback SCSV Not Supported",
+    "cipher_order":    "TLS Cipher Suite Ordering Issue",
+    "protocol":        "Deprecated TLS/SSL Protocol Version",
+    "sslv2":           "SSLv2 Protocol Enabled (Obsolete)",
+    "sslv3":           "SSLv3 Protocol Enabled (Deprecated)",
+    "tls1":            "TLS 1.0 Protocol Enabled (Deprecated)",
+    "tls1_1":          "TLS 1.1 Protocol Enabled (Deprecated)",
+    "cert_valid":      "Certificate Validity Issue",
+    "cert_chain":      "Certificate Chain Issue",
+    "cert_trust":      "Certificate Trust Issue",
+    "hsts":            "HSTS Header Not Set via TLS",
+    "ocsp_stapling":   "OCSP Stapling Not Enabled",
+}
+
+
+def _humanize_tls_id(raw_id: str) -> str:
+    """Convert raw testssl.sh finding ID to a human-readable title."""
+    lowered = raw_id.lower().strip()
+    # Direct match
+    if lowered in _TLS_HUMAN_TITLES:
+        return _TLS_HUMAN_TITLES[lowered]
+    # Partial match
+    for key, title in _TLS_HUMAN_TITLES.items():
+        if key in lowered:
+            return title
+    # Fallback: clean up the raw ID
+    cleaned = raw_id.replace('_', ' ').replace('-', ' ').strip().title()
+    return f"TLS Configuration: {cleaned}"
 
 
 def _target_type(target: str) -> str:

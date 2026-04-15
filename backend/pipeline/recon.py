@@ -108,11 +108,18 @@ class ReconStage(BaseStage):
             return []
 
         amass_timeout = getattr(self.config, "amass_timeout", 300)
+
+        # Each scan gets its own Amass data directory to avoid SQLITE_BUSY
+        # when multiple scans run concurrently.
+        amass_dir = self.work_dir / "amass_data"
+        amass_dir.mkdir(parents=True, exist_ok=True)
+
         result = await self.runner.run(
             cmd=[
                 "amass", "enum",
                 "-passive",
                 "-d", self.target,
+                "-dir", str(amass_dir),
                 "-timeout", str(amass_timeout // 60),  # amass uses minutes
             ],
             timeout=amass_timeout + 30,

@@ -2,7 +2,7 @@
 
 ## Pipeline Stages & Tools Overview
 
-The scan pipeline runs **10 stages** sequentially. Each stage uses one or more external tools:
+The scan pipeline runs **10 active scanning stages** sequentially. The dashboard also exposes additional post-processing stages such as `Aggregation`, `AIAnalysis`, `Report`, and `Done`.
 
 | # | Stage | Tool(s) | Purpose |
 |---|-------|---------|---------|
@@ -12,10 +12,10 @@ The scan pipeline runs **10 stages** sequentially. Each stage uses one or more e
 | 4 | **PortScan** | `naabu` | Fast TCP port scanning — scans all resolved IPs for open ports. Uses rate-limiting and JSON output. Falls back to a Python socket scan if naabu is missing. |
 | 5 | **ServiceScan** | `nmap` | Service detection & banner grabbing — runs versioned service detection (`-sV`), default scripts (`-sC`), and targeted NSE scripts (SSL, HTTP, FTP, SMTP, RDP, MongoDB, Redis, etc.). |
 | 6 | **HTTPProbe** | `httpx` (ProjectDiscovery) | HTTP probing — probes all candidate web URLs for liveness, status code, page title, technologies, and web server headers. Falls back to `curl` if httpx is missing. |
-| 7 | **WebDiscovery** | `gau`, `katana` | Web attack surface expansion — `gau` pulls historical URLs from passive sources; `katana` crawls live endpoints to find additional paths and parameterized URLs. |
-| 8 | **Fingerprint** | `whatweb`, `wafw00f`, `webanalyze` | Technology fingerprinting & WAF detection — identifies CMS, frameworks, libraries, and WAFs running on the target. |
-| 9 | **TLSScan** | `testssl.sh`, `sslyze`, `openssl` | TLS/SSL analysis — checks certificate validity, cipher suites, protocol versions, and known TLS vulnerabilities (BEAST, POODLE, Heartbleed, etc.). |
-| 10 | **VulnScan** | `nuclei`, `nikto`, `wpscan`*, `joomscan`* | Vulnerability scanning — template-based scanning (Nuclei), web server misconfiguration checks (Nikto), and CMS-specific scanners when detected. |
+| 7 | **Fingerprint** | `whatweb`, `wafw00f`, `webanalyze` | Technology fingerprinting & WAF detection — identifies CMS, frameworks, libraries, and WAFs running on the target. |
+| 8 | **WebDiscovery** | `gau`, `katana` | Web attack surface expansion — `gau` pulls historical URLs from passive sources; `katana` crawls live endpoints to find additional paths and parameterized URLs. |
+| 9 | **VulnScan** | `nuclei`, `nikto`, `wpscan`*, `joomscan`* | Vulnerability scanning — template-based scanning (Nuclei), web server misconfiguration checks (Nikto), and CMS-specific scanners when detected. |
+| 10 | **TLSScan** | `testssl.sh`, `sslyze`, `openssl` | TLS/SSL analysis — checks certificate validity, cipher suites, protocol versions, and known TLS vulnerabilities (BEAST, POODLE, Heartbleed, etc.). |
 
 > [!NOTE]
 > Tools marked with `*` are only enabled conditionally (deep mode or CMS detection).
@@ -48,7 +48,7 @@ The scan mode defaults to **Quick (fast)**. Deep mode applies overrides from [sc
 | `gau_timeout` | `120s` | `240s` | Double passive URL collection time |
 | `max_discovered_urls` | `150` | `500` | Deep retains 3.3× more URLs |
 | **Nuclei (Vuln Scanner)** ||||
-| `nuclei_severity` | `critical,high,medium` | `critical,high,medium,low` | Deep includes **low** severity |
+| `nuclei_severity` | `critical,high,medium` | `critical,high,medium,low` | Deep executes a broader nuclei template set |
 | `nuclei_rate_limit` | `150` req/s | `250` req/s | Faster template scanning |
 | `nuclei_timeout` | `1000s` | `1800s` (30 min) | 80% more scanning time |
 | Max nuclei targets | `4` URLs | `12` URLs | 3× more endpoints scanned |
@@ -60,20 +60,20 @@ The scan mode defaults to **Quick (fast)**. Deep mode applies overrides from [sc
 
 | Tool | Purpose | Timeout |
 |------|---------|---------|
-| `amass` | Comprehensive subdomain enumeration (heavier than subfinder) | 600s |
-| `nikto` | Web server misconfiguration & vulnerability scanner | 1800s |
+| `amass` | Comprehensive subdomain enumeration (heavier than subfinder) | 1800s |
+| `nikto` | Web server misconfiguration & vulnerability scanner | 3600s |
 | `dirsearch` | Directory & file brute-forcing | 480s |
 | `s3scanner` | AWS S3 bucket misconfiguration scanning | 480s |
 
-### Conditionally Enabled Tools (Both Modes)
+### Conditionally Enabled Tools
 
 | Tool | Trigger Condition | Purpose |
 |------|-------------------|---------|
-| `wpscan` | WordPress detected in fingerprint stage | WordPress-specific vulnerability scanning |
-| `joomscan` | Joomla detected in fingerprint stage | Joomla-specific vulnerability scanning |
+| `wpscan` | WordPress detected in fingerprint stage (deep mode only) | WordPress-specific vulnerability scanning |
+| `joomscan` | Joomla detected in fingerprint stage (deep mode only) | Joomla-specific vulnerability scanning |
 
 > [!IMPORTANT]
-> WPScan and Joomscan are **not** force-enabled by deep mode. They are triggered automatically when the fingerprint stage detects WordPress or Joomla in the target's technology stack — in **either** scan mode.
+> WPScan and Joomscan are not force-enabled by deep mode alone. They are only queued when the relevant CMS is detected and the scan is already running in deep mode.
 
 ---
 
@@ -83,7 +83,7 @@ The scan mode defaults to **Quick (fast)**. Deep mode applies overrides from [sc
 
 Nuclei results are filtered in [vuln_scan.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhistiraBagaskoro_XISIJA1/projectdashboard/backend/pipeline/vuln_scan.py) via `_is_reportable_nuclei_finding()`:
 
-**Severity filter (Quick mode):** Only `critical`, `high`, `medium` findings are kept. In deep mode, `low` is also included.
+**Severity filter:** Only `critical`, `high`, and `medium` findings are currently retained as reportable findings. Deep mode still expands execution coverage and target count, but `low` findings are filtered before reporting.
 
 **Excluded Template IDs** — these informational templates are always removed:
 
@@ -213,17 +213,17 @@ In [web_discovery.py](file:///c:/Users/DELL/OneDrive/Dokumen/22.NarendraYudhisti
 │                    QUICK MODE (Fast)                        │
 │                                                             │
 │  • Top 1000 ports scanned                                   │
-│  • Nuclei: critical + high + medium only                    │
+│  • Reportable nuclei findings: critical + high + medium     │
 │  • 4 nuclei target URLs max                                 │
 │  • Crawl depth: 2 levels                                    │
 │  • 150 discovered URLs kept                                 │
 │  • Nikto, Amass, Dirsearch, S3Scanner: DISABLED             │
 │  • ~60 min total timeout                                    │
 ├─────────────────────────────────────────────────────────────┤
-│                    DEEP MODE (Thorough)                      │
+│                    DEEP MODE (Thorough)                     │
 │                                                             │
 │  • All 65535 ports scanned                                  │
-│  • Nuclei: critical + high + medium + LOW                   │
+│  • Broader nuclei execution coverage                        │
 │  • 12 nuclei target URLs max                                │
 │  • Crawl depth: 4 levels                                    │
 │  • 500 discovered URLs kept                                 │

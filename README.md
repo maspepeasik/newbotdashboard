@@ -30,9 +30,9 @@
 
 The platform solves the following problems:
 
-- **Tool Fragmentation** — Instead of manually running 15+ security tools (subfinder, nmap, nuclei, testssl.sh, etc.) and correlating their outputs, ScanBot orchestrates a complete 11-stage scanning pipeline automatically.
-- **Report Noise** — Raw scanner output contains excessive false positives and low-signal detections. ScanBot normalizes, deduplicates, and filters findings through severity-aware logic before passing them to an AI (Groq LLaMA 3.3) that generates professional prose narratives for each report section.
-- **Accessibility** — The Next.js web dashboard provides a user-friendly interface for submitting scans, monitoring real-time progress across all pipeline stages, and downloading professionally formatted PDF reports.
+- **Tool Fragmentation** — Instead of manually running 15+ security tools (subfinder, nmap, nuclei, testssl.sh, etc.) and correlating their outputs, ScanBot orchestrates a complete 10-stage scanning pipeline and the downstream aggregation, AI analysis, and report generation flow automatically.
+- **Report Noise** — Raw scanner output contains excessive false positives and low-signal detections. ScanBot normalizes, deduplicates, filters findings through severity-aware logic, and enriches priority findings before producing the final report.
+- **Accessibility** — The Next.js web dashboard provides a user-friendly interface for submitting scans, monitoring real-time progress across scan and post-processing stages, and downloading professionally formatted PDF reports.
 - **Flexibility** — The system can be operated through the web dashboard or directly via REST API, and supports both **Fast** and **Deep** scan modes.
 
 ---
@@ -107,7 +107,7 @@ projectdashboard/
 │   │   ├── job_manager.py      # Scan lifecycle management & pipeline orchestration
 │   │   └── queue_manager.py    # Concurrent scan queue with max-parallelism control
 │   │
-│   ├── pipeline/               # 11-stage scanning pipeline
+│   ├── pipeline/               # 10-stage scanning pipeline
 │   │   ├── base_stage.py       # Abstract base class for all pipeline stages
 │   │   ├── recon.py            # Stage 1: Subdomain discovery (subfinder + assetfinder)
 │   │   ├── resolver.py         # Stage 2: DNS resolution (dnsx)
@@ -123,7 +123,7 @@ projectdashboard/
 │   ├── analysis/               # Post-scan data processing
 │   │   ├── result_aggregator.py  # Merges all stage outputs into unified AggregatedResult
 │   │   ├── normalizer.py       # Deduplication, severity filtering, noise reduction
-│   │   └── groq_ai.py          # AI narrative generation via Groq API (11 report sections)
+│   │   └── groq_ai.py          # AI narrative generation via Groq API and finding enrichment
 │   │
 │   ├── report/                 # PDF report generation
 │   │   ├── report_builder.py   # Assembles ReportData from scan artifacts + AI analysis
@@ -184,7 +184,7 @@ The system follows a **pipeline architecture** where data flows through clearly 
                │
                ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│               11-STAGE SCANNING PIPELINE                         │
+│             10-STAGE SCANNING PIPELINE + POST-PROCESSING        │
 │                                                                  │
 │  1. Recon         → Subdomain discovery (subfinder, assetfinder) │
 │  2. Resolver      → DNS resolution (dnsx)                        │
@@ -197,30 +197,11 @@ The system follows a **pipeline architecture** where data flows through clearly 
 │  9. VulnScan      → Vulnerability checks (nuclei, nikto)         │
 │ 10. TLSScan       → TLS configuration analysis (testssl, sslyze) │
 │ 11. Aggregation   → Result merging + normalization + filtering   │
+│ 12. AIAnalysis    → Narrative generation + finding enrichment    │
+│ 13. Report        → PDF report generation                        │
 │                                                                  │
 │  Each stage writes findings to a shared context dictionary.      │
 │  Raw tool outputs are persisted to SQLite for audit.             │
-└──────────────┬───────────────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    AI ANALYSIS (Groq API)                         │
-│                                                                  │
-│  All aggregated scan data is sent to LLaMA 3.3 70B which         │
-│  generates 11 narrative sections:                                │
-│  Executive Summary, Scope, Attack Surface, Vulnerabilities,      │
-│  Network Exposure, TLS Analysis, Realistic Risk Summary,         │
-│  Attack Paths, Remediation Plan, Conclusion,                     │
-│  Initial Security Recommendations                                │
-└──────────────┬───────────────────────────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                   PDF REPORT GENERATION                           │
-│                                                                  │
-│  ReportBuilder assembles scan data + AI narratives → ReportData  │
-│  PDFGenerator renders a professional A4 PDF via ReportLab        │
-│  Report is saved to /app/reports/ and path stored in SQLite      │
 └──────────────┬───────────────────────────────────────────────────┘
                │
                ▼
@@ -237,7 +218,7 @@ The system follows a **pipeline architecture** where data flows through clearly 
 | Mode | Description |
 |---|---|
 | **Fast** (default) | Top 1000 ports, standard Nuclei templates (critical/high/medium), shallow crawl depth (2), core tools only. Completes in ~15–30 minutes. |
-| **Deep** | Full port range, extended Nuclei templates (includes low severity), crawl depth 4, enables additional tools (Amass, Nikto, Dirsearch, S3Scanner). Completes in ~60–240 minutes. |
+| **Deep** | Full port range, extended Nuclei execution coverage, crawl depth 4, enables additional tools (Amass, Nikto, Dirsearch, S3Scanner), and increases URL/timeout budgets. Completes in ~60–240 minutes depending on target size. |
 
 ---
 
@@ -246,7 +227,7 @@ The system follows a **pipeline architecture** where data flows through clearly 
 ### Prerequisites
 
 - **Docker** ≥ 20.10 and **Docker Compose** ≥ 2.0
-- A **Groq API key** (free at [console.groq.com](https://console.groq.com))
+- One or more **Groq API keys** (free at [console.groq.com](https://console.groq.com))
 - *(Optional)* A Cloudflare Tunnel token for public access
 
 ### 1. Clone the Repository
@@ -265,18 +246,20 @@ cp .env.example .env
 Edit `.env` with your credentials:
 
 ```env
-# Required — Groq AI API key for report generation
-GROQ_API_KEY=your_groq_api_key_here
+# Recommended — comma-separated Groq AI API keys for round-robin rotation
+GROQ_API_KEYS=gsk_key_1,gsk_key_2
 
-# Required — API authentication token (pre-generated default is included)
+# Required — API authentication token
 PENTESTBOT_API_TOKEN=b47bc562f096436ce843868429268cca86acbbe5f6cf1971d8341d366b00ff22
 
-# Required for public access — set to your engine's public URL
+# Required for frontend-to-backend communication
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # Optional — Cloudflare Tunnel for public exposure
 CLOUDFLARE_TUNNEL_TOKEN=your_tunnel_token
 ```
+
+> `GROQ_API_KEY` is still accepted for backward compatibility, but `GROQ_API_KEYS` is the current recommended configuration.
 
 ### 3. Build and Start with Docker Compose
 
@@ -331,14 +314,14 @@ docker compose exec engine python3 main.py --check-tools
 ### 1. Web Dashboard (Next.js)
 
 - **Scan Submission** — Enter a domain or IP address, select Fast or Deep mode, and launch a scan with a single click.
-- **Real-Time Progress Tracking** — Live progress bar updates across all 11 pipeline stages with percentage indicators.
+- **Real-Time Progress Tracking** — Live progress updates across scan execution, aggregation, AI analysis, and report generation stages.
 - **Scan History** — View recent scans with status, risk level, finding counts, and duration.
 - **PDF Report Download** — Download the AI-generated professional scanning bots report directly from the dashboard.
 - **Responsive Design** — Modern, dark-themed interface optimized for desktop and mobile.
 
 ### 2. Scanning Engine (Python)
 
-- **11-Stage Pipeline** — Automated orchestration of subdomain discovery, DNS resolution, origin IP detection, port scanning, service detection, HTTP probing, fingerprinting, web discovery, vulnerability scanning, and TLS analysis.
+- **10 Active Scan Stages** — Automated orchestration of subdomain discovery, DNS resolution, origin IP detection, port scanning, service detection, HTTP probing, fingerprinting, web discovery, vulnerability scanning, and TLS analysis.
 - **Concurrent Scanning** — Configurable maximum concurrent scans (default: 3) with queue management.
 - **Graceful Error Handling** — Individual tool failures are contained per-stage; the pipeline continues with degraded coverage and records limitations in the final report.
 - **Scan Profiles** — Fast mode for quick assessments; Deep mode enables full port scans, additional tools, deeper crawling, and extended timeouts.
@@ -347,6 +330,7 @@ docker compose exec engine python3 main.py --check-tools
 
 - **11 AI-Written Sections** — Executive Summary, Scope & Coverage, Attack Surface, Vulnerability Analysis, Network Exposure, TLS Analysis, Realistic Risk Summary, Attack Path Simulation, Remediation Priorities, Conclusion, and Initial Security Recommendations.
 - **Evidence-Driven Narratives** — The AI is instructed to never invent findings, distinguish observed conditions from inferred risk, and avoid hype or severity inflation.
+- **Finding Enrichment** — Priority findings can be rewritten into clearer analyst-style descriptions before PDF generation.
 - **Fallback Mechanism** — If the Groq API is unavailable, static fallback text is generated for each section so reports are always produced.
 
 ### 4. Professional PDF Reports
@@ -365,6 +349,7 @@ All endpoints require Bearer token authentication when `PENTESTBOT_API_TOKEN` is
 | `POST` | `/api/scans` | Submit a new scan (body: `{ target, scanMode }`) |
 | `GET` | `/api/scans` | List recent scans (query: `?limit=20`) |
 | `GET` | `/api/scans/{scan_id}` | Get scan status, progress, stages, and summary |
+| `POST` | `/api/scans/{scan_id}/cancel` | Cancel an active scan |
 | `GET` | `/api/scans/{scan_id}/logs` | Get per-scan log entries (query: `?after=0` for pagination) |
 | `GET` | `/api/scans/{scan_id}/report` | Download the generated PDF report |
 
@@ -392,7 +377,7 @@ The system uses **SQLite** (async via `aiosqlite`) with WAL journal mode. The da
 
 | Table | Purpose |
 |---|---|
-| `scans` | Scan metadata: target, state, timestamps, PDF path, summary JSON |
+| `scans` | Scan metadata: target, state, timestamps, scan mode, PDF path, summary JSON |
 | `scan_stages` | Per-stage progress tracking (state, start/end timestamps, errors) |
 | `scan_results` | Full aggregated results stored as a JSON blob |
 | `raw_outputs` | Per-tool raw stdout/stderr for audit and debugging |

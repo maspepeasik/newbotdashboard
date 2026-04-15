@@ -6,6 +6,7 @@ import {
   getScanStatus,
   getScanLogs,
   downloadReport,
+  cancelScan,
   type ScanStatus,
   type LogEntry,
 } from "@/lib/api";
@@ -69,6 +70,16 @@ export default function ScanPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isTerminal = scan?.state === "completed" || scan?.state === "failed" || scan?.state === "cancelled";
+
+  const handleCancel = async () => {
+    if (!confirm("Are you sure you want to stop this scan?")) return;
+    try {
+      await cancelScan(scanId);
+      await fetchStatus();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to cancel scan");
+    }
+  };
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -299,6 +310,15 @@ export default function ScanPage() {
         <a href="/" className="btn btn-ghost">
           ← New Scan
         </a>
+        {!isTerminal && (
+          <button
+            className="btn"
+            style={{ backgroundColor: "var(--accent-red)", color: "white" }}
+            onClick={handleCancel}
+          >
+            🛑 Stop Scan
+          </button>
+        )}
         {scan.pdfReady && (
           <button
             className="btn btn-success"

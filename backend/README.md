@@ -1,121 +1,166 @@
-# PentestBot v2
+# Backend Service
 
-Production-oriented Telegram bot for automated penetration testing pipelines, AI-assisted analysis, and PDF report delivery.
+Backend pada repository ini adalah engine utama untuk scan orchestration, API, persistence, AI analysis, dan PDF report generation.
 
-## Capabilities
+## Peran Backend
 
-- Telegram-triggered scan execution
-- Multi-stage recon, scanning, vulnerability, and TLS workflow
-- Focused web discovery from live endpoints and passive URL sources
-- Async job management with queueing
-- SQLite-backed scan history
-- Groq-powered report analysis
-- Filtered PDF report generation with lower noise from informational detections
-- Docker-ready deployment with persistent volumes
+Komponen utama yang dijalankan oleh backend:
 
-## Project Structure
+- FastAPI HTTP API untuk dashboard
+- Queue manager untuk membatasi scan paralel
+- Job manager untuk orkestrasi pipeline
+- SQLite persistence untuk scan, stage, result, raw output, dan audit log
+- Optional Telegram bot bila token tersedia
+- AI analysis via Groq
+- PDF report generation via ReportLab
 
-- `main.py`: entrypoint
-- `config.py`: environment-driven runtime config
-- `bot/`: Telegram bot handlers
-- `core/`: job manager, queue manager, database
-- `pipeline/`: scan stages
-- `analysis/`: result aggregation and AI analysis
-- `report/`: report builder and PDF generation
-- `utils/`: command runner and logging
-- `docker/`: container entrypoint
+## Modul Penting
 
-## Local Run
+| Path | Fungsi |
+|---|---|
+| `main.py` | Entry point CLI dan bootstrap service |
+| `config.py` | Loader environment dan runtime config |
+| `core/database.py` | SQLite schema dan persistence |
+| `core/job_manager.py` | Lifecycle scan dan pipeline orchestration |
+| `core/queue_manager.py` | Batas concurrency scan |
+| `service/http_api.py` | FastAPI app factory dan endpoint |
+| `pipeline/` | 10 tahap scanning |
+| `analysis/` | Aggregation, normalization, AI analysis |
+| `report/` | Report builder dan PDF generator |
+| `utils/command_runner.py` | Wrapper eksekusi tool eksternal |
 
-1. Copy environment file:
+## Urutan Stage Backend
+
+Pipeline aktual yang dijalankan backend:
+
+1. Recon
+2. Resolver
+3. OriginIP
+4. PortScan
+5. ServiceScan
+6. HTTPProbe
+7. Fingerprint
+8. WebDiscovery
+9. VulnScan
+10. TLSScan
+11. Aggregation
+12. AIAnalysis
+13. Report
+
+Backend kemudian menutup job dengan state `Done` jika report berhasil dibuat.
+
+## Menjalankan Secara Lokal
+
+1. Salin environment file dari root repository.
 
 ```bash
-cp .env.example .env
+cp ../.env.example ../.env
 ```
 
-2. Fill required values:
-
-- `TELEGRAM_BOT_TOKEN`
-- `GROQ_API_KEY`
-- `ALLOWED_USER_IDS`
-
-3. Install dependencies:
+2. Install dependency Python.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Verify tool availability:
+3. Cek tool eksternal.
 
 ```bash
-python3 main.py --check-tools
+python main.py --check-tools
 ```
 
-5. Start the bot:
+4. Jalankan backend API only.
 
 ```bash
-python3 main.py
+python main.py --api-only
 ```
 
-## Standalone Docker Deployment
-
-The bot now includes:
-
-- `Dockerfile`: production container image
-- `docker-compose.yml`: standalone bot deployment
-- `docker/entrypoint.sh`: runtime ownership fix for mounted volumes and nuclei template bootstrap
-
-### 1. Prepare environment
+5. Atau jalankan test scan headless.
 
 ```bash
-cp .env.example .env
+python main.py --test-scan example.com --scan-mode fast
 ```
 
-Set:
+## CLI Flags
 
-- `TELEGRAM_BOT_TOKEN`
-- `GROQ_API_KEY`
-- `ALLOWED_USER_IDS`
+| Flag | Fungsi |
+|---|---|
+| `--config` | Path file `.env` |
+| `--check-tools` | Verifikasi tool lalu exit |
+| `--test-scan TARGET` | Jalankan scan tanpa dashboard |
+| `--api-only` | Nonaktifkan Telegram walau token ada |
+| `--scan-mode fast|deep` | Pilih mode scan untuk `--test-scan` |
+| `--log-level` | Override log level runtime |
 
-### 2. Build and run
+## Telegram Bot
 
-```bash
-docker compose up --build -d
-```
+Telegram bot masih didukung, tetapi sifatnya opsional.
 
-Toggles yang relevan untuk deployment container:
+- Jika `TELEGRAM_BOT_TOKEN` tersedia dan Anda tidak memakai `--api-only`, backend akan mencoba menjalankan bot di background.
+- Root Docker deployment tidak memakai mode ini. Container backend dijalankan dengan `CMD ["python3", "main.py", "--api-only"]`.
 
-- `ENABLE_WEB_DISCOVERY=true` untuk mengaktifkan `gau` + `katana`
-- `ENABLE_SSLYZE=true` untuk validasi TLS sekunder
-- `ENABLE_NIKTO=false` agar report tetap minim noise
-- `MAX_DISCOVERED_URLS=150` untuk membatasi hasil crawling yang masuk pipeline
+## Konfigurasi yang Paling Relevan
 
-### 3. Inspect logs
+### AI
 
-```bash
-docker compose logs -f
-```
+- `GROQ_API_KEYS`
+- `GROQ_MODEL`
+- `GROQ_MAX_TOKENS`
+- `GROQ_TEMPERATURE`
 
-### 4. Stop the bot
+### API
 
-```bash
-docker compose down
-```
+- `PENTESTBOT_API_PORT`
+- `PENTESTBOT_API_TOKEN`
+- `CORS_ORIGINS`
 
-## Docker Notes
+### Scan
 
-- Scan data is stored in `/app/data`
-- Application logs are stored in `/app/logs`
-- Generated reports are stored in `/app/reports`
-- Nuclei templates are persisted in a named volume under `/home/pentestbot/.config/nuclei`
-- The container entrypoint fixes ownership for mounted volumes before starting the bot
+- `MAX_CONCURRENT_SCANS`
+- `SCAN_TIMEOUT`
+- `NAABU_TOP_PORTS`
+- `NAABU_RATE`
+- `NUCLEI_SEVERITY`
+- `NUCLEI_RATE_LIMIT`
+- `ENABLE_AMASS`
+- `ENABLE_WEB_DISCOVERY`
+- `ENABLE_FINGERPRINT`
+- `ENABLE_NIKTO`
+- `ENABLE_WPSCAN`
+- `ENABLE_JOOMSCAN`
+- `ENABLE_S3SCANNER`
+- `ENABLE_SSLYZE`
 
-This avoids the permission issues that typically happen when named Docker volumes are mounted into a non-root container.
+## Penyimpanan Runtime
 
-## Combined Deployment With Dashboard
+Path default:
 
-To run the dashboard and bot together, use the parent-level compose file:
+- `/app/data`
+- `/app/logs`
+- `/app/reports`
 
-## Important Legal Notice
+Database SQLite default:
 
-Run scans only against systems you are explicitly authorized to test. Unauthorized scanning can be illegal and harmful.
+- `/app/data/pentestbot.db`
+
+## Catatan Implementasi
+
+- `job_manager.py` adalah sumber kebenaran urutan stage.
+- `normalizer.py` memutuskan finding mana yang masuk report final.
+- `groq_ai.py` tidak hanya menulis section report, tetapi juga melakukan enrichment deskripsi finding prioritas.
+- `vuln_scan.py` menjalankan `nuclei` dan `nikto` paralel, lalu menambah `wpscan` atau `joomscan` bila CMS terdeteksi.
+
+## Docker
+
+Docker image backend meng-include sebagian besar tool scanning penting, termasuk:
+
+- ProjectDiscovery tools
+- `nmap`
+- `testssl.sh`
+- `nikto`
+- `whatweb`
+- `wpscan`
+- `joomscan`
+- `dirsearch`
+
+Detail deployment lintas service ada di `../DEPLOYMENT.md`.

@@ -246,6 +246,21 @@ def create_app(
             ],
         }
 
+    # ── Cancel Scan ──────────────────────────────────────────────────────
+    @app.post("/api/scans/{scan_id}/cancel", dependencies=[Depends(verify_token)])
+    async def cancel_scan_endpoint(scan_id: str):
+        scan = await database.get_scan(scan_id)
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found.")
+
+        ok = await job_manager.cancel(scan_id)
+        if not ok:
+            # If the scan wasn't successfully cancelled, it might mean it's already done or failed
+            # We still return HTTP 200 but indicate it in the response body if needed
+            pass
+            
+        return {"scanId": scan_id, "cancelled": ok}
+
     # ── Get Scan Logs ────────────────────────────────────────────────────
 
     @app.get("/api/scans/{scan_id}/logs", dependencies=[Depends(verify_token)])

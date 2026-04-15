@@ -51,6 +51,94 @@ _TLS_REMEDIATION: dict[str, str] = {
     "crime":      "Disable TLS compression.",
 }
 
+# Nuclei template-specific remediation
+_NUCLEI_REMEDIATION: dict[str, str] = {
+    "x-frame-options": (
+        "Add 'X-Frame-Options: DENY' or 'SAMEORIGIN' header to all HTTP responses. "
+        "This prevents the page from being embedded in iframes, mitigating clickjacking attacks."
+    ),
+    "x-content-type-options": (
+        "Set 'X-Content-Type-Options: nosniff' on all HTTP responses. "
+        "This prevents browsers from MIME-sniffing the content type, reducing content injection risk."
+    ),
+    "content-security-policy": (
+        "Implement a Content-Security-Policy header starting with a restrictive baseline: "
+        "'default-src self; script-src self'. Iterate to allow legitimate sources."
+    ),
+    "strict-transport-security": (
+        "Enable HSTS by adding 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload' "
+        "to all HTTPS responses. This prevents SSL stripping attacks."
+    ),
+    "permissions-policy": (
+        "Add a Permissions-Policy header to control which browser features the page can use. "
+        "Restrict access to camera, microphone, geolocation, and other sensitive APIs."
+    ),
+    "cors-misconfig": (
+        "Review CORS configuration to ensure Access-Control-Allow-Origin does not use wildcard (*) "
+        "with credentials. Restrict allowed origins to specific trusted domains."
+    ),
+    "open-redirect": (
+        "Validate and sanitize all redirect URLs server-side. Use an allowlist of permitted redirect "
+        "destinations. Never redirect to user-controlled URLs without validation."
+    ),
+    "subdomain-takeover": (
+        "Remove the dangling DNS record pointing to the unclaimed service. If the service is still "
+        "needed, reclaim it immediately. Monitor DNS records for orphaned CNAME entries."
+    ),
+    "exposed-panels": (
+        "Restrict administrative panels to internal networks or VPN-only access. "
+        "Implement strong authentication and IP whitelisting for management interfaces."
+    ),
+    "directory-listing": (
+        "Disable directory listing in the web server configuration. For Apache, add "
+        "'Options -Indexes' to the relevant Directory directive. For Nginx, remove 'autoindex on'."
+    ),
+    "server-header": (
+        "Remove or minimize the Server response header to avoid disclosing web server software "
+        "and version information. This reduces the information available for targeted exploitation."
+    ),
+    "x-powered-by": (
+        "Remove the X-Powered-By response header. Disclosing the application framework and version "
+        "helps attackers identify known vulnerabilities for that specific technology stack."
+    ),
+    "waf-detect": (
+        "This is an informational finding. A Web Application Firewall was detected, which is a "
+        "positive security control. Ensure WAF rules are kept current and bypass techniques are tested."
+    ),
+    "tech-detect": (
+        "This is an informational detection of technologies in use. Review whether any detected "
+        "technology versions have known vulnerabilities and apply patches as needed."
+    ),
+}
+
+# Nikto pattern-specific remediation
+_NIKTO_REMEDIATION: dict[str, str] = {
+    "server banner": (
+        "Configure the web server to suppress version information in the Server header. "
+        "For Apache: 'ServerTokens Prod'. For Nginx: 'server_tokens off'."
+    ),
+    "x-xss-protection": (
+        "While X-XSS-Protection is deprecated in modern browsers, set it to '1; mode=block' for "
+        "legacy browser support. Prefer Content-Security-Policy for XSS mitigation."
+    ),
+    "options method": (
+        "Disable unnecessary HTTP methods (OPTIONS, TRACE, PUT, DELETE) on the web server. "
+        "Only allow GET, POST, and HEAD unless other methods are required by the application."
+    ),
+    "directory indexing": (
+        "Disable directory indexing on the web server. This prevents attackers from browsing "
+        "directory contents and discovering sensitive files."
+    ),
+    "default file": (
+        "Remove default installation files and example pages from the web server. "
+        "These files may contain sensitive information or known vulnerabilities."
+    ),
+    "backup file": (
+        "Remove backup files (.bak, .old, .swp, ~) from the web server document root. "
+        "These files may expose source code or configuration details."
+    ),
+}
+
 _GENERIC_REMEDIATION: dict[str, str] = {
     "critical": (
         "Remediate immediately. Treat this as an active incident. "
@@ -180,6 +268,27 @@ class Normalizer:
                 port = self._extract_port(f.id)
                 if port and port in _PORT_REMEDIATION:
                     f.remediation = _PORT_REMEDIATION[port]
+                    continue
+
+            # Nuclei template-specific
+            if f.source == "nuclei":
+                template_id = f.extra.get("template_id", "").lower()
+                text = f"{template_id} {f.title} {f.description}".lower()
+                for key, remediation in _NUCLEI_REMEDIATION.items():
+                    if key in text:
+                        f.remediation = remediation
+                        break
+                if f.remediation:
+                    continue
+
+            # Nikto pattern-specific
+            if f.source == "nikto":
+                text = f"{f.title} {f.description}".lower()
+                for key, remediation in _NIKTO_REMEDIATION.items():
+                    if key in text:
+                        f.remediation = remediation
+                        break
+                if f.remediation:
                     continue
 
             # Generic by severity

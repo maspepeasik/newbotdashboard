@@ -47,13 +47,13 @@ DEEP_OVERRIDES: dict = {
     # Nuclei — more templates, higher rate, includes low severity
     "nuclei_severity":       "critical,high,medium,low",
     "nuclei_rate_limit":     250,
-    "nuclei_timeout":        1800,
+    "nuclei_timeout":        3600,
 
     # Additional tools enabled in deep mode
     "enable_amass":          True,
-    "amass_timeout":         600,
+    "amass_timeout":         1800,
     "enable_nikto":          True,
-    "nikto_timeout":         1800,
+    "nikto_timeout":         3600,
     "enable_dirsearch":      True,
     "dirsearch_timeout":     480,
     "enable_s3scanner":      True,
@@ -82,6 +82,11 @@ def apply_profile(base_config, mode: ScanMode):
     if mode == ScanMode.DEEP:
         for key, value in DEEP_OVERRIDES.items():
             if hasattr(config, key):
-                setattr(config, key, value)
+                base_val = getattr(config, key)
+                # If both are integers (e.g. timeouts), take the max so .env can override explicitly
+                if isinstance(base_val, int) and isinstance(value, int) and not isinstance(value, bool):
+                    setattr(config, key, max(base_val, value))
+                else:
+                    setattr(config, key, value)
 
     return config

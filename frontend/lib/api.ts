@@ -102,6 +102,12 @@ export async function getScanStatus(scanId: string): Promise<ScanStatus> {
   return apiFetch<ScanStatus>(`/api/scans/${scanId}`);
 }
 
+export async function cancelScan(scanId: string): Promise<{ scanId: string; cancelled: boolean }> {
+  return apiFetch(`/api/scans/${scanId}/cancel`, {
+    method: "POST",
+  });
+}
+
 export async function getScanLogs(
   scanId: string,
   after: number = 0
@@ -127,7 +133,7 @@ export async function downloadReport(scanId: string): Promise<void> {
   const blob = await res.blob();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `pentest_report_${scanId}.pdf`;
+  a.download = `security_assessment_${scanId}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();

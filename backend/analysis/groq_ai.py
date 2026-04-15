@@ -55,24 +55,27 @@ class GroqAI:
     SECTION_BATCH_SIZE = 1
     INTER_SECTION_DELAY_SECONDS = 5.0
     SECTION_MAX_TOKENS = {
-        "executive_summary": 260,
-        "scope_and_coverage": 260,
-        "attack_surface": 260,
-        "vulnerability_analysis": 320,
-        "network_exposure": 280,
-        "tls_analysis": 240,
-        "realistic_risk_summary": 240,
-        "attack_path_simulation": 220,
-        "remediation_plan": 300,
-        "conclusion": 180,
-        "initial_recommendations": 400,
+        "executive_summary": 800,
+        "scope_and_coverage": 800,
+        "attack_surface": 800,
+        "vulnerability_analysis": 1000,
+        "network_exposure": 800,
+        "tls_analysis": 800,
+        "realistic_risk_summary": 800,
+        "attack_path_simulation": 800,
+        "remediation_plan": 1000,
+        "conclusion": 800,
+        "initial_recommendations": 1200,
     }
 
     SYSTEM_PROMPT = textwrap.dedent("""
-        You are a senior security engineer writing penetration testing report sections.
+        You are a senior security engineer writing sections for an automated security assessment report.
 
         Rules:
         - Write in clear, direct, professional English.
+        - Assume the reader is a security engineer or IT professional. Do NOT define basic concepts like HSTS, TLS, or Cross-Site Scripting.
+        - Be concise. Focus purely on observations and practical impacts.
+        - Avoid repeating the same points across multiple sections (e.g., if a TLS issue is covered in the TLS section, do not artificially emphasize it again elsewhere).
         - Be conservative and evidence-driven.
         - Do not invent findings, exploit paths, CVEs, versions, or business impact.
         - Clearly distinguish directly observed conditions from inferred risk.
@@ -81,11 +84,13 @@ class GroqAI:
         - Use realistic attacker language and practical remediation advice.
         - Do not use markdown, headings, or bullet points.
         - Write short, well-structured prose paragraphs only.
+        - Always finish your text with a complete sentence. Never cut off midway.
     """).strip()
 
     def __init__(self, config: GroqConfig):
         self.config = config
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(config.timeout))
+        logger.info(f"[GroqAI] Initialized with {len(config.api_keys)} API key(s) (round-robin)")
 
     async def analyze(self, result: AggregatedResult) -> AIAnalysis:
         logger.info(f"[GroqAI] Starting analysis for scan {result.scan_id}")
@@ -154,10 +159,12 @@ class GroqAI:
                 {"role": "user", "content": user_prompt},
             ],
         }
+        api_key = self.config.next_key()
         headers = {
-            "Authorization": f"Bearer {self.config.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        logger.debug(f"[GroqAI] Using key ...{api_key[-6:]}")
         response = await self._client.post(GROQ_URL, json=payload, headers=headers)
         if response.is_error:
             detail = response.text[:500].replace("\n", " ").strip()
@@ -244,7 +251,7 @@ class GroqAI:
 
     def _prompt_executive(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Executive Summary for a penetration testing report.
+Write the Executive Summary for an automated security assessment report.
 
 Target: {result.target}
 Findings: {result.total_findings}
@@ -268,7 +275,7 @@ Write 3 to 4 short paragraphs.
 
     def _prompt_scope(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Scope & Coverage section for a penetration testing report.
+Write the Scope & Coverage section for an automated security assessment report.
 
 Target: {result.target}
 Tools ran: subdomain discovery, DNS resolution, port scanning, service detection, HTTP probing, technology fingerprinting, web discovery, vulnerability scanning (Nuclei/Nikto), TLS analysis.
@@ -290,7 +297,7 @@ Write 3 to 4 short paragraphs.
 
     def _prompt_attack_surface(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Attack Surface Overview section for a penetration testing report.
+Write the Attack Surface Overview section for an automated security assessment report.
 
 Target: {result.target}
 Subdomains: {len(result.subdomains)}
@@ -323,7 +330,7 @@ Write 3 to 4 short paragraphs.
         ], indent=2, default=str)
 
         return f"""
-Write the Vulnerability Review section for a penetration testing report.
+Write the Vulnerability Review section for an automated security assessment report.
 
 Target: {result.target}
 Representative findings:
@@ -341,7 +348,7 @@ Write 4 to 5 short paragraphs.
 
     def _prompt_network(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Network Exposure section for a penetration testing report.
+Write the Network Exposure section for an automated security assessment report.
 
 Target: {result.target}
 Open ports: {[port.port for port in result.open_ports[:20]]}
@@ -361,7 +368,7 @@ Write 3 to 4 short paragraphs.
 
     def _prompt_tls(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the TLS and Transport Security section for a penetration testing report.
+Write the TLS and Transport Security section for an automated security assessment report.
 
 Target: {result.target}
 Certificate info: {json.dumps(result.cert_info, indent=2, default=str)}
@@ -377,7 +384,7 @@ Write 3 to 4 short paragraphs.
 
     def _prompt_realistic_risk(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Realistic Risk Summary section for a penetration testing report.
+Write the Realistic Risk Summary section for an automated security assessment report.
 
 Target: {result.target}
 Findings: {result.total_findings}
@@ -400,7 +407,7 @@ Write 3 to 4 short paragraphs.
 
     def _prompt_attack_paths(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Attack Path Simulation section for a penetration testing report.
+Write the Attack Path Simulation section for an automated security assessment report.
 
 Target: {result.target}
 Top findings: {json.dumps([finding.title for finding in result.findings[:10]], indent=2)}
@@ -415,12 +422,12 @@ Requirements:
 - Clearly state when a chain is hypothetical rather than confirmed.
 - Avoid dramatic language.
 
-Write 2 to 3 short paragraphs.
+Write 3 to 4 paragraphs.
 """.strip()
 
     def _prompt_remediation(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Remediation Priorities section for a penetration testing report.
+Write the Remediation Priorities section for an automated security assessment report.
 
 Target: {result.target}
 Top findings: {json.dumps([
@@ -443,23 +450,27 @@ Write 4 to 5 short paragraphs.
 
     def _prompt_conclusion(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write the Conclusion for a penetration testing report.
+Write the Conclusion for an automated security assessment report.
 
 Target: {result.target}
 Findings: {result.total_findings}
 Severity summary: {result.severity_summary}
+Open ports: {[port.port for port in result.open_ports[:10]]}
+Technologies: {result.technologies[:5]}
 
 Requirements:
-- Summarize the final security posture without using numeric scores.
-- State the most important next action.
-- Recommend whether follow-up validation or manual testing is warranted.
+- Summarize the overall security posture based on what was observed during this assessment.
+- Highlight the most significant risk areas and whether they represent immediate, short-term, or long-term concerns.
+- State the most important next actions the organization should take.
+- Recommend whether follow-up manual testing, periodic reassessment, or deeper investigation is warranted.
+- Close with a forward-looking statement about maintaining security hygiene.
 
-Write 2 short paragraphs.
+Write 3 to 4 well-developed paragraphs.
 """.strip()
 
     def _prompt_initial_recommendations(self, result: AggregatedResult, ctx: str) -> str:
         return f"""
-Write an "Initial Security Recommendations for Developers" note for the end of a penetration testing report.
+Write an "Initial Security Recommendations for Developers" note for the end of a automated security assessment report.
 
 Target: {result.target}
 Findings: {result.total_findings}
@@ -569,10 +580,77 @@ Write 4 to 6 short paragraphs.
                 "Implement strong authentication with multi-factor authentication for administrative accounts and apply least-privilege access control. "
                 "Suppress server version banners and technology fingerprints that aid attacker reconnaissance. "
                 "Enable centralized logging for authentication events and access control failures. "
-                "Schedule periodic security assessments combining automated scanning with manual penetration testing."
+                "Schedule periodic security assessments combining automated scanning with manual security reviews."
             ),
         }
         return fallbacks.get(section, "Analysis unavailable for this section.")
 
+    # ── Per-Finding AI Enrichment ─────────────────────────────────────────────
+
+    ENRICHMENT_MAX_FINDINGS = 10
+    ENRICHMENT_MAX_TOKENS = 200
+    ENRICHMENT_DELAY_SECONDS = 3.0
+
+    async def enrich_findings(self, findings: list) -> list:
+        """
+        Enrich the top N findings with AI-rewritten descriptions.
+        Each finding gets a contextual, analyst-grade description replacing
+        the raw tool output. Failures fall back silently to the original text.
+        """
+        from analysis.result_aggregator import Finding
+
+        to_enrich = findings[:self.ENRICHMENT_MAX_FINDINGS]
+        if not to_enrich:
+            return findings
+
+        logger.info(f"[GroqAI] Enriching {len(to_enrich)} findings with AI descriptions")
+        enriched_count = 0
+
+        for i, finding in enumerate(to_enrich):
+            try:
+                prompt = self._prompt_enrich_finding(finding)
+                enriched_text = await self._call(prompt, max_tokens=self.ENRICHMENT_MAX_TOKENS)
+                if enriched_text and len(enriched_text) > 30:
+                    # Store original as raw, replace with enriched
+                    finding.extra["original_description"] = finding.description
+                    finding.description = enriched_text.strip()
+                    enriched_count += 1
+
+                if i < len(to_enrich) - 1:
+                    await asyncio.sleep(self.ENRICHMENT_DELAY_SECONDS)
+
+            except Exception as exc:
+                logger.warning(f"[GroqAI] Finding enrichment failed for '{finding.title[:40]}': {exc}")
+                # Keep original description — no change
+
+        logger.info(f"[GroqAI] Enrichment complete: {enriched_count}/{len(to_enrich)} findings improved")
+        return findings
+
+    @staticmethod
+    def _prompt_enrich_finding(finding) -> str:
+        cve_str = ", ".join(finding.cve_ids[:3]) if finding.cve_ids else "none"
+        affected_str = ", ".join(finding.affected[:3]) if finding.affected else "unknown"
+        return f"""
+Rewrite this scanner finding description for a professional automated security assessment report.
+
+Finding title: {finding.title}
+Severity: {finding.severity}
+Source tool: {finding.source}
+Affected: {affected_str}
+CVEs: {cve_str}
+Original scanner output: {finding.description[:500]}
+
+Rules:
+- Write 2-3 sentences explaining what was ACTUALLY OBSERVED on the target.
+- Explain WHY this matters from a realistic attacker's perspective.
+- Distinguish between confirmed weakness and informational detection.
+- Do not describe how the scanning tool works. Focus on what it found.
+- Do not use markdown, headings, or bullet points.
+- Do not invent data, CVEs, or versions not present in the original output.
+- Be precise and factual. If the severity is low/info, do not overstate the risk.
+- Write professional, concise prose.
+""".strip()
+
     async def close(self) -> None:
         await self._client.aclose()
+

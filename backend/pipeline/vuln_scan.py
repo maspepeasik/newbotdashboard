@@ -152,11 +152,14 @@ class VulnScanStage(BaseStage):
 
         templates_arg = self._resolve_nuclei_templates()
         if not templates_arg:
+            from config import DATA_DIR
+            nuclei_dir = DATA_DIR / "nuclei-templates"
+            nuclei_dir.mkdir(parents=True, exist_ok=True)
             # Auto-download templates if missing
-            self.log.info("[VulnScan] nuclei templates missing — downloading...")
+            self.log.info(f"[VulnScan] nuclei templates missing — downloading to {nuclei_dir}...")
             dl = await self.runner.run(
-                cmd=["nuclei", "-update-templates", "-duc"],
-                timeout=120,
+                cmd=["nuclei", "-update-templates", "-ud", str(nuclei_dir), "-duc"],
+                timeout=300,
             )
             if dl.success:
                 self.log.info("[VulnScan] nuclei templates downloaded successfully")
@@ -165,14 +168,7 @@ class VulnScanStage(BaseStage):
             templates_arg = self._resolve_nuclei_templates()
 
         if not templates_arg:
-            self.log.warning("[VulnScan] nuclei templates not found - skipping")
-            self.ctx["nuclei_raw"] = ""
-            self.ctx["nuclei_error"] = "templates not found"
-            self.add_tool_error(
-                "nuclei templates not found; run `nuclei -update-templates` "
-                "or set NUCLEI_TEMPLATES."
-            )
-            return
+            self.log.info("[VulnScan] nuclei templates not found by path — will run without explicit -t flag")
 
         cfg = self.config
         nuclei_urls_file = self._prepare_nuclei_urls(urls_file)
@@ -190,11 +186,14 @@ class VulnScanStage(BaseStage):
             "15",
             "-bulk-size",
             "10",
-            "-t",
-            templates_arg,
             "-duc",
             "-no-color",
         ]
+
+        # Only add -t if templates were resolved by path;
+        # otherwise nuclei v3 uses its own default template directory.
+        if templates_arg:
+            base_cmd.extend(["-t", templates_arg])
 
         result = None
         attempted_flags: list[str] = []
@@ -451,12 +450,19 @@ class VulnScanStage(BaseStage):
                 return configured
             # Directory exists but is empty — fall through to common dirs
 
+        from config import DATA_DIR
         common_dirs = [
+             DATA_DIR / "nuclei-templates",
+            # Nuclei v3 default paths
+            Path.home() / ".local" / "nuclei" / "templates",
+            Path.home() / ".config" / "nuclei" / "templates",
+            # Legacy / alternative paths
             Path.home() / "nuclei-templates",
             Path.home() / ".nuclei-templates",
             Path.home() / ".local" / "nuclei-templates",
             Path.home() / ".local" / "share" / "nuclei-templates",
-            Path.home() / ".config" / "nuclei" / "templates",
+            Path("/home/pentestbot/.local/nuclei/templates"),
+            Path("/home/pentestbot/.config/nuclei/templates"),
             Path("/home/ubuntu/nuclei-templates"),
             Path("/home/ubuntu/.nuclei-templates"),
             Path("/home/ubuntu/.local/nuclei-templates"),

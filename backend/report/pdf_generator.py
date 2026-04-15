@@ -1,6 +1,6 @@
 """
 ScanBot - PDF Generator
-Produces a simple, engineering-focused penetration testing report PDF.
+Produces a professional, engineering-focused automated security assessment report PDF.
 """
 
 import html
@@ -12,7 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfgen.canvas import Canvas
-from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import CondPageBreak, HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
 from analysis.result_aggregator import Finding
 from report.report_builder import ReportData
@@ -31,7 +31,7 @@ class PDFGenerator:
 
     def generate(self, report: ReportData) -> Path:
         target_safe = report.metadata.target.replace(".", "_").replace("/", "_")
-        filename = f"pentest_{target_safe}_{report.metadata.scan_id}.pdf"
+        filename = f"report_{target_safe}_{report.metadata.scan_id}.pdf"
         out_path = self.output_dir / filename
 
         doc = SimpleDocTemplate(
@@ -63,7 +63,7 @@ class PDFGenerator:
         if include_header:
             canvas.setFont("Helvetica", 8)
             canvas.setFillColor(colors.HexColor("#444444"))
-            canvas.drawString(doc.leftMargin, PAGE_HEIGHT - 1.2 * cm, "Pentest Report")
+            canvas.drawString(doc.leftMargin, PAGE_HEIGHT - 1.2 * cm, "Security Assessment Report")
             canvas.drawRightString(
                 PAGE_WIDTH - doc.rightMargin,
                 PAGE_HEIGHT - 1.2 * cm,
@@ -144,7 +144,6 @@ class PDFGenerator:
         ]))
         story.append(Spacer(1, 0.3 * cm))
         story.extend(self._prose(report.analysis.executive_summary))
-        story.append(PageBreak())
         return story
 
     def _section_scope(self, report: ReportData) -> list:
@@ -175,7 +174,6 @@ class PDFGenerator:
             story.extend(self._bullet_list(limitations))
         else:
             story.extend(self._bullet_list(["No major tool limitation was recorded for this scan."]))
-        story.append(PageBreak())
         return story
 
     def _section_attack_surface(self, report: ReportData) -> list:
@@ -201,7 +199,6 @@ class PDFGenerator:
 
         story.extend(self._section_subheader("Assessment Notes"))
         story.extend(self._prose(report.analysis.attack_surface))
-        story.append(PageBreak())
         return story
 
     def _section_network_exposure(self, report: ReportData) -> list:
@@ -239,7 +236,6 @@ class PDFGenerator:
 
         story.extend(self._section_subheader("Assessment Notes"))
         story.extend(self._prose(report.analysis.network_exposure))
-        story.append(PageBreak())
         return story
 
     def _section_web_observations(self, report: ReportData) -> list:
@@ -274,7 +270,6 @@ class PDFGenerator:
 
         story.extend(self._section_subheader("Vulnerability Review"))
         story.extend(self._prose(report.analysis.vulnerability_analysis))
-        story.append(PageBreak())
         return story
 
     def _section_tls(self, report: ReportData) -> list:
@@ -296,19 +291,16 @@ class PDFGenerator:
 
         story.extend(self._section_subheader("Assessment Notes"))
         story.extend(self._prose(report.analysis.tls_analysis))
-        story.append(PageBreak())
         return story
 
     def _section_realistic_risk(self, report: ReportData) -> list:
         story = self._section_header("7. Realistic Risk Summary")
         story.extend(self._prose(report.analysis.realistic_risk_summary))
-        story.append(PageBreak())
         return story
 
     def _section_attack_paths(self, report: ReportData) -> list:
         story = self._section_header("8. Attack Path Simulation")
         story.extend(self._prose(report.analysis.attack_path_simulation))
-        story.append(PageBreak())
         return story
 
     def _section_findings(self, report: ReportData) -> list:
@@ -324,7 +316,6 @@ class PDFGenerator:
 
         for index, finding in enumerate(report.result.findings, start=1):
             story.extend(self._finding_block(index, finding))
-        story.append(PageBreak())
         return story
 
     def _section_remediation(self, report: ReportData) -> list:
@@ -339,13 +330,11 @@ class PDFGenerator:
             story.extend(self._section_subheader("Top Follow-Up Actions"))
             story.extend(self._bullet_list(top_actions))
 
-        story.append(PageBreak())
         return story
 
     def _section_conclusion(self, report: ReportData) -> list:
         story = self._section_header("11. Conclusion")
         story.extend(self._prose(report.analysis.conclusion))
-        story.append(PageBreak())
         return story
 
     def _section_appendix(self, report: ReportData) -> list:
@@ -486,6 +475,7 @@ class PDFGenerator:
 
     def _section_header(self, title: str) -> list:
         return [
+            CondPageBreak(6 * cm),
             Paragraph(self._escape(title), self.styles["h1"]),
             HRFlowable(width="100%", thickness=1.0, color=colors.HexColor("#5A5A5A")),
             Spacer(1, 0.25 * cm),
@@ -525,10 +515,10 @@ class PDFGenerator:
             text = str(item).strip()
             if not text:
                 continue
-            story.append(Paragraph(f"- {self._escape(text)}", self.styles["list"]))
+            story.append(Paragraph(f"&bull; {self._escape(text)}", self.styles["list"]))
             story.append(Spacer(1, 0.06 * cm))
         if not story:
-            story.append(Paragraph("- No data available.", self.styles["list"]))
+            story.append(Paragraph("&bull; No data available.", self.styles["list"]))
         return story
 
     @staticmethod

@@ -34,6 +34,8 @@ class PortScanStage(BaseStage):
 
     async def run(self) -> None:
         # Build target list: prefer origin candidates, fallback to live IPs, then root target
+        cdn_only = self.ctx.get("cdn_detected", False) and not self.ctx.get("origin_candidates")
+
         targets = (
             self.ctx.get("origin_candidates")
             or ([self.target] if self.ctx.get("cdn_detected") else [])
@@ -52,9 +54,9 @@ class PortScanStage(BaseStage):
             await self._socket_fallback(targets)
             return
 
-        await self._run_naabu(targets_file)
+        await self._run_naabu(targets_file, cdn_only=cdn_only)
 
-    async def _run_naabu(self, targets_file: Path) -> None:
+    async def _run_naabu(self, targets_file: Path, cdn_only: bool = False) -> None:
         cfg = self.config
 
         cmd = [
@@ -64,8 +66,12 @@ class PortScanStage(BaseStage):
             "-retries", str(cfg.naabu_retries),
             "-silent",
             "-json",
-            "-exclude-cdn",
         ]
+
+        # Only exclude CDN IPs when we have origin IPs to scan.
+        # If the target is CDN-only, excluding CDN IPs leaves zero targets.
+        if not cdn_only:
+            cmd.append("-exclude-cdn")
 
         if cfg.naabu_ports:
             cmd += ["-p", cfg.naabu_ports]

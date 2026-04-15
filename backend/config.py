@@ -3,6 +3,7 @@ PentestBot v2 — Configuration
 Loads, validates, and exposes all runtime settings from environment / .env file.
 """
 
+import itertools
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -46,12 +47,24 @@ class TelegramConfig:
 
 @dataclass
 class GroqConfig:
-    api_key: str
+    api_keys: list[str]
     model: str             = "llama-3.3-70b-versatile"
     max_tokens: int        = 4096
     temperature: float     = 0.2
     timeout: int           = 90
     retry_attempts: int    = 3
+
+    def __post_init__(self):
+        self._key_cycle = itertools.cycle(self.api_keys)
+
+    def next_key(self) -> str:
+        """Return the next API key in round-robin order."""
+        return next(self._key_cycle)
+
+    @property
+    def api_key(self) -> str:
+        """Backward-compat: returns the first key."""
+        return self.api_keys[0]
 
 
 @dataclass
@@ -204,14 +217,18 @@ def load_config(env_file: str = ".env", require_secrets: bool = True) -> Config:
     )
     # Telegram is now optional — no error if token is missing.
 
+    # Support both GROQ_API_KEYS (comma-separated) and legacy GROQ_API_KEY
+    raw_keys = os.getenv("GROQ_API_KEYS", "") or os.getenv("GROQ_API_KEY", "")
+    api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+
     groq = GroqConfig(
-        api_key=os.getenv("GROQ_API_KEY", ""),
+        api_keys=api_keys or [""],
         model=_normalize_groq_model(os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")),
         max_tokens=int(os.getenv("GROQ_MAX_TOKENS", "4096")),
         temperature=float(os.getenv("GROQ_TEMPERATURE", "0.2")),
     )
-    if require_secrets and not groq.api_key:
-        raise ValueError("GROQ_API_KEY is required in .env")
+    if require_secrets and not api_keys:
+        raise ValueError("GROQ_API_KEYS is required in .env (comma-separated list)")
 
     scan = ScanConfig(
         subfinder_threads=int(os.getenv("SUBFINDER_THREADS", "10")),

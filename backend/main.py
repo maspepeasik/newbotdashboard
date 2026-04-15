@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PentestBot v2 - Automated Penetration Testing System
+ScanBot - Automated Penetration Testing System
 Entry point: initializes all subsystems and launches the FastAPI server.
 Telegram bot integration is optional — runs automatically if token is configured.
 """
@@ -54,7 +54,7 @@ def _projectdiscovery_httpx_path(runner) -> str | None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="PentestBot v2 - Automated Penetration Testing Platform",
+        description="ScanBot - Automated Penetration Testing Platform",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -145,7 +145,7 @@ def check_tools(env_file: str = ".env") -> bool:
         config_required_tools.extend(["whatweb", "wafw00f"])
 
     print("\n" + "=" * 50)
-    print("  PentestBot v2 - Tool Check")
+    print("  ScanBot - Tool Check")
     print("=" * 50)
 
     missing = []
@@ -238,7 +238,7 @@ def check_tools(env_file: str = ".env") -> bool:
         print("   Run: sudo bash scripts/install_tools.sh\n")
         return False
 
-    print("\nAll tools present. PentestBot is ready.\n")
+    print("\nAll tools present. ScanBot is ready.\n")
     return True
 
 
@@ -291,7 +291,7 @@ async def main_async(config: "Config", api_only: bool = False) -> None:
     from service.http_api import create_app
 
     logger.info("=" * 55)
-    logger.info("  PentestBot v2 starting up")
+    logger.info("  ScanBot starting up")
     logger.info("=" * 55)
 
     db = Database(config.db_path)
