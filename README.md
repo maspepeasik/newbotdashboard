@@ -30,7 +30,7 @@
 
 The platform solves the following problems:
 
-- **Tool Fragmentation** — Instead of manually running 15+ security tools (subfinder, nmap, nuclei, testssl.sh, etc.) and correlating their outputs, ScanBot orchestrates a complete 10-stage scanning pipeline and the downstream aggregation, AI analysis, and report generation flow automatically.
+- **Tool Fragmentation** — Instead of manually running 16+ security tools (subfinder, nmap, nuclei, testssl.sh, gowitness, etc.) and correlating their outputs, ScanBot orchestrates a complete 11-stage scanning pipeline and the downstream aggregation, AI analysis, and report generation flow automatically.
 - **Report Noise** — Raw scanner output contains excessive false positives and low-signal detections. ScanBot normalizes, deduplicates, filters findings through severity-aware logic, and enriches priority findings before producing the final report.
 - **Accessibility** — The Next.js web dashboard provides a user-friendly interface for submitting scans, monitoring real-time progress across scan and post-processing stages, and downloading professionally formatted PDF reports.
 - **Flexibility** — The system can be operated through the web dashboard or directly via REST API, and supports both **Fast** and **Deep** scan modes.
@@ -62,6 +62,7 @@ The platform solves the following problems:
 | `nmap` | Service detection & script scanning |
 | `httpx` (ProjectDiscovery) | HTTP/HTTPS probing & technology detection |
 | `katana`, `gau`, `gobuster`, `dirsearch` | Web discovery & URL enumeration |
+| `gowitness` | Automated visual evidence / screenshot capture |
 | `nuclei` | Template-based vulnerability scanning |
 | `nikto` | Web server scanner |
 | `whatweb`, `wafw00f`, `webanalyze` | Technology fingerprinting & WAF detection |
@@ -107,7 +108,7 @@ projectdashboard/
 │   │   ├── job_manager.py      # Scan lifecycle management & pipeline orchestration
 │   │   └── queue_manager.py    # Concurrent scan queue with max-parallelism control
 │   │
-│   ├── pipeline/               # 10-stage scanning pipeline
+│   ├── pipeline/               # 11-stage scanning pipeline
 │   │   ├── base_stage.py       # Abstract base class for all pipeline stages
 │   │   ├── recon.py            # Stage 1: Subdomain discovery (subfinder + assetfinder)
 │   │   ├── resolver.py         # Stage 2: DNS resolution (dnsx)
@@ -117,8 +118,9 @@ projectdashboard/
 │   │   ├── http_probe.py       # Stage 6: HTTP/HTTPS probing (httpx)
 │   │   ├── fingerprint.py      # Stage 7: Technology fingerprinting (whatweb/wafw00f/webanalyze)
 │   │   ├── web_discovery.py    # Stage 8: URL discovery (katana + gau + gobuster)
-│   │   ├── vuln_scan.py        # Stage 9: Vulnerability scanning (nuclei + nikto)
-│   │   └── tls_scan.py         # Stage 10: TLS/SSL analysis (testssl.sh + sslyze)
+│   │   ├── tls_scan.py         # Stage 9: TLS/SSL analysis (testssl.sh + sslyze)
+│   │   ├── screenshots.py      # Stage 10: Visual evidence capture (gowitness)
+│   │   └── vuln_scan.py        # Stage 11: Vulnerability scanning (nuclei + nikto)
 │   │
 │   ├── analysis/               # Post-scan data processing
 │   │   ├── result_aggregator.py  # Merges all stage outputs into unified AggregatedResult
@@ -184,23 +186,30 @@ The system follows a **pipeline architecture** where data flows through clearly 
                │
                ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│             10-STAGE SCANNING PIPELINE + POST-PROCESSING        │
+│             11-STAGE SCANNING PIPELINE + POST-PROCESSING         │
 │                                                                  │
 │  1. Recon         → Subdomain discovery (subfinder, assetfinder) │
 │  2. Resolver      → DNS resolution (dnsx)                        │
 │  3. OriginIP      → CDN bypass / origin IP detection             │
-│  4. PortScan      → Port scanning (naabu, top 1000 or full)      │
-│  5. ServiceScan   → Service fingerprinting (nmap -sV -sC)        │
-│  6. HTTPProbe     → Live endpoint discovery (httpx)              │
-│  7. Fingerprint   → Tech detection (whatweb, wafw00f, webanalyze)│
-│  8. WebDiscovery  → URL enumeration (katana, gau, gobuster)      │
-│  9. VulnScan      → Vulnerability checks (nuclei, nikto)         │
-│ 10. TLSScan       → TLS configuration analysis (testssl, sslyze) │
-│ 11. Aggregation   → Result merging + normalization + filtering   │
-│ 12. AIAnalysis    → Narrative generation + finding enrichment    │
-│ 13. Report        → PDF report generation                        │
 │                                                                  │
-│  Each stage writes findings to a shared context dictionary.      │
+│  [Parallel Execution Branch]                                     │
+│  ├── Infrastructure Pipeline:                                    │
+│  │    4. PortScan    → Port scanning (naabu, top 1000 or full)   │
+│  │    5. ServiceScan → Service fingerprinting (nmap -sV -sC)     │
+│  │                                                               │
+│  └── Web Application Pipeline (awaits PortScan):                 │
+│       6. HTTPProbe   → Live endpoint discovery (httpx)           │
+│       ├── 7. Fingerprint  → Tech detection (whatweb, wafw00f...) │
+│       ├── 8. WebDiscovery → URL enumeration (katana, gau...)     │
+│       ├── 9. TLSScan      → TLS configuration (testssl.sh)       │
+│       └── 10. Screenshots → Visual evidence capture (gowitness)  │
+│       11. VulnScan   → Vulnerability checks (nuclei, nikto)      │
+│                                                                  │
+│  [Post-Processing]                                               │
+│  12. Aggregation  → Result merging + normalization + filtering   │
+│  13. AIAnalysis   → Narrative generation + finding enrichment    │
+│  14. Report       → PDF report generation                        │
+│                                                                  │
 │  Raw tool outputs are persisted to SQLite for audit.             │
 └──────────────┬───────────────────────────────────────────────────┘
                │
@@ -321,7 +330,8 @@ docker compose exec engine python3 main.py --check-tools
 
 ### 2. Scanning Engine (Python)
 
-- **10 Active Scan Stages** — Automated orchestration of subdomain discovery, DNS resolution, origin IP detection, port scanning, service detection, HTTP probing, fingerprinting, web discovery, vulnerability scanning, and TLS analysis.
+- **Parallel Pipeline Execution** — Scanning time is drastically reduced via parallel asynchronous execution. The infrastructure pipeline (`PortScan`, `ServiceScan`) runs concurrently alongside the web pipeline (`HTTPProbe`), which itself parallelizes `Fingerprint`, `WebDiscovery`, `TLSScan`, and `Screenshots` before running `VulnScan`.
+- **11 Active Scan Stages** — Automated orchestration of subdomain discovery, DNS resolution, origin IP detection, port scanning, service detection, HTTP probing, fingerprinting, web discovery, TLS analysis, automated screenshots, and vulnerability scanning.
 - **Concurrent Scanning** — Configurable maximum concurrent scans (default: 3) with queue management.
 - **Graceful Error Handling** — Individual tool failures are contained per-stage; the pipeline continues with degraded coverage and records limitations in the final report.
 - **Scan Profiles** — Fast mode for quick assessments; Deep mode enables full port scans, additional tools, deeper crawling, and extended timeouts.
