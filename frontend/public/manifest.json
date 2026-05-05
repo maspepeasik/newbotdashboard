@@ -1,0 +1,9 @@
+{
+  "name": "CyberScan",
+  "short_name": "CyberScan",
+  "description": "Automated Security Assessment Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#22d3ee"
+}
